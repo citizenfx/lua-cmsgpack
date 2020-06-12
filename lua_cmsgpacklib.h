@@ -52,6 +52,54 @@ LUALIB_API int mp_pack (lua_State *L);
 LUALIB_API int mp_unpack (lua_State *L);
 
 /*
+** extend(encoder_table): Register an extension-type. The encoder_table is often
+** a metatable with additional metamethods for serializing tables/userdata:
+**   __ext: Unique msgpack extension identifier. Note that applications can only
+**          assign 0 to 127 to store application-specific type information.
+**   __pack: An encoder function: f(self, type): Where "type" is the extension
+**           type identifier (one function handling multiple encodings).
+**   __unpack: A decoder function: f(encoded string)
+**
+** E.g.,
+**   metatable = {
+**     __ext = 0x15,  -- Extension type identifier
+**
+**     __pack = function(self, type) -- Object Serialization
+**       return cmsgpack.pack(self.x, self.y, self.z)
+**     end,
+**
+**     __unpack = function(encoded, type) -- Factory
+**       local x,y,z = cmsgpack.unpack(encoded)
+**       return setmetatable({x = x, y = y, z = z}, metatable)
+**     end,
+**  }
+**
+** The encoder also handles the returning of a second boolean argument, telling
+** the encoder that the serialization function handled packing its extension
+** header
+**
+** This function will throw an error if attempting to register over an already
+** existing definition (even if it's the same metatable)/. and it returns
+** zero.
+**
+** RETURN:
+**  The encoder-table passed as an argument.
+*/
+LUALIB_API int mp_set_extension (lua_State *L);
+
+/*
+** Get the extension-type definition, often a metatable, for encoding/decoding
+** tables/userdata definitions.
+*/
+LUALIB_API int mp_get_extension (lua_State *L);
+
+/*
+** Explicitly remove the msgpack extension definition for each of the type
+** identifiers provided to this function; returning zero.
+*/
+LUALIB_API int mp_clear_extension (lua_State *L);
+
+/*
 ** BOOLEAN:
 **  unsigned - Encode integers as unsigned integers/values.
 **  integer - Encodes lua_Number's as, possibly unsigned, integers, regardless of type.

@@ -74,6 +74,22 @@ static void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
   lua_pop(L, 1);  /* getregtable */
 }
 
+/* Get a subtable within the registry table */
+static inline void mp_getregt (lua_State *L, const char *name) {
+  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
+  if (!luaL_getsubtable(L, -1, name)) {
+    /* initialize it */
+  }
+
+#if LUA_VERSION_NUM < 503
+  lua_pushvalue(L, -2);
+  lua_remove(L, -3);
+#else
+  lua_rotate(L, -2, 1);  /* LUACMSGPACK_REG <-> subtable */
+#endif
+  lua_pop(L, 1);
+}
+
 /*
 ** Decode the msgpack_object and place its contents onto the Lua stack.
 ** Returning 1 on success, 0 on failure.
@@ -292,13 +308,27 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj) {
       }
       break;
     }
-    /*
-    ** Temporarily treat all extended types as a string: at least until an API
-    ** is developed for handling extended types.
-    */
     case MSGPACK_OBJECT_EXT: {
       msgpack_object_ext ext = obj->via.ext;
-      lua_pushlstring(L, (const char *)ext.ptr, ext.size);
+      mp_getregt(L, LUACMSGPACK_REG_EXT);  /* Fetch the decoding function */
+      lua_rawgeti(L, -1, (lua_Integer)ext.type);
+      if (lua_type(L, -1) == LUA_TTABLE) {
+        lua_getfield(L, -1, LUACMSGPACK_META_DECODE);  /* [table, table, decoder] */
+        if (lua_isfunction(L, -1)) {
+          lua_insert(L, -3); lua_pop(L, 2); /* [decoder] */
+          lua_pushlstring(L, ext.ptr, (size_t)ext.size);  /* [decoder, value] */
+          lua_pushinteger(L, (lua_Integer)ext.type);
+          lua_call(L, 2, 1);  /* [decoded value] */
+        }
+        else {
+          lua_pop(L, 3);
+          return luaL_error(L, "msgpack extension type: invalid decoder!");
+        }
+      }
+      else {
+        lua_pop(L, 2);
+        lua_pushlstring(L, (const char *)ext.ptr, ext.size);
+      }
       break;
     }
     default:
@@ -328,6 +358,74 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj) {
     return c;
   }
 #endif
+
+static lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
+  if (!LUACMSGPACK_EXT_VALID(type))
+    return luaL_argerror(L, arg, "Invalid extension-type identifier");
+  return type;
+}
+
+/*
+** Return the extension type, if one exists, associated to the object value at
+** the specified stack index.
+*/
+static lua_Integer mp_ext_type (lua_State *L, int idx) {
+  lua_Integer type = EXT_INVALID;
+#if LUA_VERSION_NUM >= 503
+  if (luaL_getmetafield(L, idx, LUACMSGPACK_META_MTYPE) != LUA_TNIL) {
+#else
+  if (luaL_getmetafield(L, idx, LUACMSGPACK_META_MTYPE) != 0) {
+#endif
+    if (mp_isinteger(L, -1)) {  /* [table] */
+      type = lua_tointeger(L, -1);
+      type = LUACMSGPACK_EXT_VALID(type) ? type : EXT_INVALID;
+    }
+    lua_pop(L, 1);
+  }
+
+  return type;
+}
+
+/*
+** @TODO: Missing level. With a poorly defined extension encoder, cycles can
+**  exist and the encoder level isn't propagated.
+*/
+static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
+  mp_getregt(L, LUACMSGPACK_REG_EXT);  /* [table] */
+  lua_rawgeti(L, -1, (lua_Integer)ext_id);
+
+  /* Parse the encoder table */
+  if (lua_type(L, -1) == LUA_TTABLE) {  /* [table, table] */
+    lua_getfield(L, -1, LUACMSGPACK_META_ENCODE);  /* [table, table, encoder] */
+    if (lua_isfunction(L, -1)) {
+      msgpack_packer *pk = &(ud->u.packed.packer);
+
+      lua_insert(L, -3); lua_pop(L, 2); /* [encoder] */
+      lua_pushvalue(L, mp_rel_index(idx, 1));  /* [encoder, value to encode] */
+      lua_pushinteger(L, (lua_Integer)ext_id);  /* [encoder, value, type] */
+      lua_call(L, 2, 2);  /* [encoded value] */
+      if (lua_type(L, -2) == LUA_TSTRING) {
+        size_t len = 0;
+        const char *s = lua_tolstring(L, -2, &len);
+        /* Second, and optional, return value denotes a custom encoding */
+        if (lua_toboolean(L, -1))
+          lua_mpbuffer_append(&ud->u.packed.buffer, s, len);
+        else {
+          msgpack_pack_ext(pk, len, ext_id);
+          msgpack_pack_ext_body(pk, s, len);
+        }
+        lua_pop(L, 2);
+        return 1;
+      }
+      lua_pop(L, 2);  /* both returns */
+      return luaL_error(L, "invalid encoder result from encoder <%d>", ext_id);
+    }
+    lua_pop(L, 3);
+    return luaL_error(L, "msgpack extension type: invalid encoder!");
+  }
+  lua_pop(L, 2);
+  return 0;
+}
 
 LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
   lua_msgpack *ud = NULL;
@@ -385,6 +483,24 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
     return 1;
   }
   return 0;
+}
+
+LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type,
+                                 lua_CFunction encoder, lua_CFunction decoder) {
+  if (LUACMSGPACK_EXT_VALID(type) && !LUACMSGPACK_EXT_RESERVED(type)) {
+    mp_getregt(L, LUACMSGPACK_REG_EXT);
+    lua_pushinteger(L, type);
+
+    lua_createtable(L, 0, 3);
+    lua_pushinteger(L, type); lua_setfield(L, -2, LUACMSGPACK_META_MTYPE);
+    lua_pushcfunction(L, encoder); lua_setfield(L, -2, LUACMSGPACK_META_ENCODE);
+    lua_pushcfunction(L, decoder); lua_setfield(L, -2, LUACMSGPACK_META_DECODE);
+
+    lua_rawset(L, -3);
+    lua_pop(L, 1);  /* mp_getregt */
+  }
+  else
+    luaL_error(L, "Invalid extension-type identifier");
 }
 
 LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int level) {
@@ -456,7 +572,14 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int lev
     }
     case LUA_TTABLE: {
       size_t array_length = 0;
-      if ((ud->flags & MP_ARRAY_AS_MAP) == MP_ARRAY_AS_MAP)
+      lua_Integer type = 0;
+      if ((type = mp_ext_type(L, idx)) != EXT_INVALID) {
+        if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)type)) {
+          luaL_error(L, "msgpack extension type: not registered!");
+          return;
+        }
+      }
+      else if ((ud->flags & MP_ARRAY_AS_MAP) == MP_ARRAY_AS_MAP)
         mp_encode_lua_table_as_map(L, ud, idx, level);
       else if (mp_table_is_an_array(L, idx, ud->flags, &array_length)
                      && (array_length > 0 || (ud->flags & MP_EMPTY_AS_ARRAY))) {
@@ -466,25 +589,29 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int lev
         mp_encode_lua_table_as_map(L, ud, idx, level);
       break;
     }
-    /*
-    ** @TODO: Associate a msgpack extended type identifier with functions and
-    ** userdata types. For the time, push temporary data to ensure all structure
-    ** data is still maintained.
-    */
-    case LUA_TLIGHTUSERDATA:
-    case LUA_TUSERDATA:
+    case LUA_TLIGHTUSERDATA: {
 #if defined(LUACMSGPACK_BIT32)
       msgpack_pack_uint32(pk, (uint32_t)lua_touserdata(L, idx));
 #else
       msgpack_pack_uint64(pk, (uint64_t)lua_touserdata(L, idx));
 #endif
       break;
+    }
+    case LUA_TUSERDATA:
     case LUA_TTHREAD:
-    case LUA_TFUNCTION:
-    default: {
+    case LUA_TFUNCTION: {
+      lua_Integer type = 0;
+      if ((type = mp_ext_type(L, idx)) != EXT_INVALID) {
+        if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)type)) {
+          luaL_error(L, "msgpack extension type: not registered!");
+          return;
+        }
+        break;
+      }
+    }  /* FALLTHROUGH */
+    default:
       luaL_error(L, "type <%s> cannot be msgpack'd", lua_typename(L, t));
       break;
-    }
   }
 }
 
@@ -659,6 +786,67 @@ LUALIB_API int mp_unpack (lua_State *L) {
   return count;
 }
 
+LUALIB_API int mp_get_extension (lua_State *L) {
+  mp_checktype(L, luaL_checkinteger(L, 1), 1);
+  mp_getregt(L, LUACMSGPACK_REG_EXT);
+  lua_pushvalue(L, 1);
+  lua_rawget(L, -2);
+  /* Defensive statement: lua_remove(L, -2); */
+  return 1;
+}
+
+LUALIB_API int mp_set_extension (lua_State *L) {
+  lua_Integer type = 0;
+  luaL_checktype(L, 1, LUA_TTABLE);
+  luaL_checkstack(L, 4, "set_extension");
+
+  /* Quickly sanitize extension table */
+  lua_getfield(L, 1, LUACMSGPACK_META_MTYPE);
+  lua_getfield(L, 1, LUACMSGPACK_META_ENCODE);
+  lua_getfield(L, 1, LUACMSGPACK_META_DECODE);
+
+  mp_checktype(L, (type = luaL_checkinteger(L, -3)), 1);
+  if (LUACMSGPACK_EXT_RESERVED(type))
+    return luaL_argerror(L, 1, "Reserved extension-type identifier");
+  else if (!lua_isfunction(L, -1) || !lua_isfunction(L, -2))  /* meta-methods */
+    return luaL_argerror(L, 2, "missing pack/unpack metamethods.");
+  lua_pop(L, 3);
+
+  /* Ensure extension id isn't already used... */
+  mp_getregt(L, LUACMSGPACK_REG_EXT);
+  lua_rawgeti(L, -1, type);  /* [ext, value] */
+  if (lua_isnil(L, -1)) {
+    lua_pushvalue(L, 1);
+    lua_rawseti(L, -3, type);  /* Pop: value */
+    lua_pop(L, 2);  /* Pop: nil & LUACMSGPACK_REG_EXT */
+
+    lua_pushvalue(L, 1);
+    return 1;
+  }
+  else {
+    lua_pop(L, 2);
+    return luaL_error(L, "attempting to replace registered msgpack extension");
+  }
+}
+
+LUALIB_API int mp_clear_extension (lua_State *L) {
+  int i, nargs = lua_gettop(L);
+
+  mp_getregt(L, LUACMSGPACK_REG_EXT);
+  for (i = 1; i <= nargs; i++) {
+    lua_Integer type = 0;
+    mp_checktype(L, (type = luaL_checkinteger(L, i)), 1);
+    if (LUACMSGPACK_EXT_RESERVED(type))
+      return luaL_argerror(L, 1, "Reserved extension-type identifier");
+
+    lua_pushvalue(L, i);
+    lua_pushnil(L);
+    lua_rawset(L, -3);
+  }
+  lua_pop(L, 1);  /* LUACMSGPACK_REG_EXT */
+  return 0;
+}
+
 LUALIB_API int mp_setoption (lua_State *L) {
   int opt;
   lua_Integer flags = mp_getregi(L, LUACMSGPACK_REG_OPTIONS, MP_DEFAULT);
@@ -815,6 +1003,10 @@ static const luaL_Reg msgpack_lib[] = {
   { "set_array", mp_set_array },
   { "set_integer", mp_set_integer },
   { "set_number", mp_set_number },
+  /* Extension API*/
+  { "extend", mp_set_extension },
+  { "extend_get", mp_get_extension },
+  { "extend_clear", mp_clear_extension },
   { NULL, NULL }
 };
 

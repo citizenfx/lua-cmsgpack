@@ -8,6 +8,7 @@
 #define lua_cmsgpack_h
 
 #include <string.h>
+#include <stdint.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -65,6 +66,12 @@ typedef struct lua_mpbuffer {
 
 #define LUACMSGPACK_REG "lua_cmsgpack"
 #define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
+#define LUACMSGPACK_REG_EXT "lua_cmsgpack_meta"
+
+#define LUACMSGPACK_META_MTYPE "__ext"
+#define LUACMSGPACK_META_ENCODE "__pack"
+#define LUACMSGPACK_META_DECODE "__unpack"
+
 #define LUACMSGPACK_USERDATA "LUACMSGPACK"
 
 #define MP_OPEN                0x01  /* Userdata data resources are alive. */
@@ -98,6 +105,18 @@ typedef struct lua_mpbuffer {
   #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_DOUBLE)
 #endif
 
+/* True if a lua_Integer is within the extension type range. */
+#define LUACMSGPACK_EXT_VALID(i) (INT8_MIN <= (i) && (i) <= INT8_MAX)
+
+/* True if a lua_Integer is within the user-extension range. */
+#define LUACMSGPACK_EXT_USER_VALID(i) (0x0 <= (i) && (i) <= INT8_MAX)
+
+/* Potentially reserve types... */
+#define LUACMSGPACK_EXT_RESERVED(i) 0
+
+/* A value not within LUACMSGPACK_EXT_VALID */
+#define EXT_INVALID -1024
+
 /* Userdata structure for managing/cleaning message packing */
 typedef struct lua_msgpack {
   lua_Integer flags;
@@ -122,6 +141,16 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags);
 ** the given index.
 */
 LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud);
+
+/*
+** Associate two C closures with a msgpack extension-type identifier.
+**
+** @SEE: mp_set_extension: this function implicitly creates the underlying
+**    table definition and 'mp_get_extension' can be used to retrieve that
+**    metatable
+*/
+LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type,
+                                  lua_CFunction encoder, lua_CFunction decoder);
 
 /*
 ** MessagePack the value at the specified stack index.
