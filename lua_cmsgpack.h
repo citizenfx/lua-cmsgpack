@@ -33,6 +33,11 @@
   #define mp_checkstack(L, sz) luaL_checkstack((L), (sz), "too many (nested) values in encoded msgpack")
 #endif
 
+/* Check if float or double can be an integer without loss of precision */
+#define IS_INT_TYPE_EQUIVALENT(x, T) (!isinf(x) && (T)(x) == (x))
+#define IS_INT64_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int64_t)
+#define IS_INT_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int)
+
 #if LUA_VERSION_NUM >= 503
   #define mp_isinteger(L, idx) lua_isinteger((L), (idx))
 #else
@@ -267,6 +272,325 @@ static inline int lua_mpbuffer_append (void *data, const char *s, size_t len) {
   memcpy(lua_mpbuffer_prepare(B, len), s, len);  /* copy content */
   B->n += len;
   return 0;  /* LUA_OK */
+}
+
+/* }================================================================== */
+
+/*
+** {==================================================================
+** msgpack packers
+** ===================================================================
+*/
+
+/*
+** Return the extension type, if one exists, associated to the object value at
+** the specified stack index.
+*/
+static lua_Integer mp_ext_type (lua_State *L, int idx);
+
+/*
+** @TODO: Missing level. With a poorly defined extension encoder, cycles can
+**  exist and the encoder level isn't propagated.
+*/
+static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx,
+                                                                 int8_t ext_id);
+
+/*
+** Return true if the table at the specified stack index can be encoded as an
+** array, i.e., a table whose keys are (1) integers; (2) begin at one; (3)
+** strictly positive; and (4) form a contiguous sequence.
+**
+** However, with the flag "MP_ARRAY_WITH_HOLES" set, condition (4) is alleviated
+** and msgpack can encode "null" in the nil array indices.
+*/
+static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
+                                                          size_t *array_length);
+
+/*
+** Encode the table at the specified stack index as an array.
+**
+** PARAMETERS:
+**  idx - stack (or relative) index of the lua table.
+**  level - current recursive/encoding depth, used as a short-hand to avoid an
+**    explicit structure to avoid cycles among tables.
+**  array_length - precomputed array length; at worst use lua_objlen/lua_rawlen
+**    to compute this value.
+*/
+static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
+                                       int idx, int level, size_t array_length);
+
+/*
+** Encode the table at the specified stack index as a <key, value> array.
+*/
+static void mp_encode_lua_table_as_map(lua_State *L, lua_msgpack *ud,
+                                                            int idx, int level);
+
+#define lua_msgpack_op(NAME, PACKER)                                           \
+  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
+    ((void)(L));                                                               \
+    ((void)(i));                                                               \
+    PACKER(&(ud->u.packed.packer));                                            \
+  }
+
+#define lua_msgpack_number_func(NAME, PACKER, TYPE)                            \
+  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
+    PACKER(&(ud->u.packed.packer), (TYPE)lua_tonumber(L, i));                  \
+  }
+
+#define lua_msgpack_int_func(NAME, PACKER, TYPE)                               \
+  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
+    PACKER(&(ud->u.packed.packer), (TYPE)lua_tointeger(L, i));                 \
+  }
+
+#define lua_msgpack_str_func(NAME, LEN, BODY)                                  \
+  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
+    size_t len = 0;                                                            \
+    const char *s = lua_tolstring(L, i, &len);                                 \
+    LEN(&(ud->u.packed.packer), len);                                          \
+    BODY(&(ud->u.packed.packer), s, len);                                      \
+  }
+
+lua_msgpack_int_func(lua_pack_char, msgpack_pack_char, char);
+
+lua_msgpack_int_func(lua_pack_signed_char, msgpack_pack_signed_char, signed char);
+lua_msgpack_int_func(lua_pack_short, msgpack_pack_short, short);
+lua_msgpack_int_func(lua_pack_int, msgpack_pack_int, int);
+lua_msgpack_int_func(lua_pack_long, msgpack_pack_long, long);
+lua_msgpack_int_func(lua_pack_long_long, msgpack_pack_long_long, long long);
+lua_msgpack_int_func(lua_pack_unsigned_char, msgpack_pack_unsigned_char, unsigned char);
+lua_msgpack_int_func(lua_pack_unsigned_short, msgpack_pack_unsigned_short, unsigned short);
+lua_msgpack_int_func(lua_pack_unsigned_int, msgpack_pack_unsigned_int, unsigned int);
+lua_msgpack_int_func(lua_pack_unsigned_long, msgpack_pack_unsigned_long, unsigned long);
+lua_msgpack_int_func(lua_pack_unsigned_long_long, msgpack_pack_unsigned_long_long, unsigned long long);
+
+lua_msgpack_int_func(lua_pack_uint8, msgpack_pack_uint8, uint8_t);
+lua_msgpack_int_func(lua_pack_uint16, msgpack_pack_uint16, uint16_t);
+lua_msgpack_int_func(lua_pack_uint32, msgpack_pack_uint32, uint32_t);
+lua_msgpack_int_func(lua_pack_uint64, msgpack_pack_uint64, uint64_t);
+lua_msgpack_int_func(lua_pack_int8, msgpack_pack_int8, int8_t);
+lua_msgpack_int_func(lua_pack_int16, msgpack_pack_int16, int16_t);
+lua_msgpack_int_func(lua_pack_int32, msgpack_pack_int32, int32_t);
+lua_msgpack_int_func(lua_pack_int64, msgpack_pack_int64, int64_t);
+
+lua_msgpack_int_func(lua_pack_fix_uint8, msgpack_pack_fix_uint8, uint8_t);
+lua_msgpack_int_func(lua_pack_fix_uint16, msgpack_pack_fix_uint16, uint16_t);
+lua_msgpack_int_func(lua_pack_fix_uint32, msgpack_pack_fix_uint32, uint32_t);
+lua_msgpack_int_func(lua_pack_fix_uint64, msgpack_pack_fix_uint64, uint64_t);
+lua_msgpack_int_func(lua_pack_fix_int8, msgpack_pack_fix_int8, int8_t);
+lua_msgpack_int_func(lua_pack_fix_int16, msgpack_pack_fix_int16, int16_t);
+lua_msgpack_int_func(lua_pack_fix_int32, msgpack_pack_fix_int32, int32_t);
+lua_msgpack_int_func(lua_pack_fix_int64, msgpack_pack_fix_int64, int64_t);
+
+lua_msgpack_number_func(lua_pack_float, msgpack_pack_float, float);
+lua_msgpack_number_func(lua_pack_double, msgpack_pack_double, double);
+
+lua_msgpack_op(lua_pack_nil, msgpack_pack_nil);
+lua_msgpack_op(lua_pack_true, msgpack_pack_true);
+lua_msgpack_op(lua_pack_false, msgpack_pack_false);
+
+lua_msgpack_str_func(lua_pack_string, msgpack_pack_str, msgpack_pack_str_body);
+lua_msgpack_str_func(lua_pack_v4, msgpack_pack_v4raw, msgpack_pack_v4raw_body);
+lua_msgpack_str_func(lua_pack_bin, msgpack_pack_bin, msgpack_pack_bin_body);
+
+static inline void lua_pack_array (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  ((void)level);
+  mp_encode_lua_table_as_array(L, ud, idx, level,
+#if LUA_VERSION_NUM < 502
+    (size_t)lua_objlen(L, -1)
+#else
+    (size_t)lua_rawlen(L, -1)
+#endif
+  );
+}
+
+static inline void lua_pack_map (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  mp_encode_lua_table_as_map(L, ud, idx, level);
+}
+
+static inline void lua_pack_boolean (lua_State *L, lua_msgpack *ud, int idx) {
+  if (lua_toboolean(L, idx))
+    msgpack_pack_true(&(ud->u.packed.packer));
+  else
+    msgpack_pack_false(&(ud->u.packed.packer));
+}
+
+static inline void lua_pack_integer (lua_State *L, lua_msgpack *ud, int idx) {
+  msgpack_packer *pk = &(ud->u.packed.packer);
+#if LUA_VERSION_NUM >= 503
+  #if defined(LUACMSGPACK_BIT32)
+  if (ud->flags & MP_UNSIGNED_INTEGERS)
+    msgpack_pack_uint32(pk, (uint32_t)lua_tointeger(L, idx));
+  else
+    msgpack_pack_int32(pk, (int32_t)lua_tointeger(L, idx));
+  #else
+  if (ud->flags & MP_UNSIGNED_INTEGERS)
+    msgpack_pack_uint64(pk, (uint64_t)lua_tointeger(L, idx));
+  else
+    msgpack_pack_int64(pk, (int64_t)lua_tointeger(L, idx));
+  #endif
+#else
+  #if defined(LUACMSGPACK_BIT32)
+  if (ud->flags & MP_UNSIGNED_INTEGERS)
+    msgpack_pack_uint32(pk, (uint32_t)lua_tonumber(L, idx));
+  else
+    msgpack_pack_int32(pk, (int32_t)lua_tonumber(L, idx));
+  #else
+  if (ud->flags & MP_UNSIGNED_INTEGERS)
+    msgpack_pack_uint64(pk, (uint64_t)lua_tonumber(L, idx));
+  else
+    msgpack_pack_int64(pk, (int64_t)lua_tonumber(L, idx));
+  #endif
+#endif
+}
+
+static inline void lua_pack_number (lua_State *L, lua_msgpack *ud, int idx) {
+#if LUA_VERSION_NUM >= 503
+  if (lua_isinteger(L, idx))
+    lua_pack_integer(L, ud, idx);
+  else {
+    if (ud->flags & MP_NUMBER_AS_FLOAT)
+      msgpack_pack_float(&(ud->u.packed.packer), (float)lua_tonumber(L, idx));
+    else
+      msgpack_pack_double(&(ud->u.packed.packer), (double)lua_tonumber(L, idx));
+  }
+#else /* LUA_VERSION_NUM < 503 */
+  /*
+  ** Earlier versions of Lua have no explicit integer types, therefore detect if
+  ** the floating type can be faithfully casted to an int.
+  */
+  lua_Number n = lua_tonumber(L, idx);
+#if defined(LUACMSGPACK_BIT32)
+  if (IS_INT_EQUIVALENT(n) || (ud->flags & MP_NUMBER_AS_INTEGER)) {
+#else
+  if (IS_INT64_EQUIVALENT(n) || (ud->flags & MP_NUMBER_AS_INTEGER)) {
+#endif
+    lua_pack_integer(L, ud, idx);
+  }
+  else {
+    if (ud->flags & MP_NUMBER_AS_FLOAT)
+      msgpack_pack_float(&(ud->u.packed.packer), (float)n);
+    else
+      msgpack_pack_double(&(ud->u.packed.packer), (double)n);
+  }
+#endif
+}
+
+static inline void lua_pack_table (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  size_t array_length = 0;
+  if ((ud->flags & MP_ARRAY_AS_MAP) == MP_ARRAY_AS_MAP)
+    mp_encode_lua_table_as_map(L, ud, idx, level);
+  else if (mp_table_is_an_array(L, idx, ud->flags, &array_length)
+                     && (array_length > 0 || (ud->flags & MP_EMPTY_AS_ARRAY))) {
+    mp_encode_lua_table_as_array(L, ud, idx, level, array_length);
+  }
+  else
+    mp_encode_lua_table_as_map(L, ud, idx, level);
+}
+
+static inline void lua_pack_extended_table (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  lua_Integer type = 0;
+  if ((type = mp_ext_type(L, idx)) != EXT_INVALID) {
+    if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)type)) {
+      luaL_error(L, "msgpack extension type: not registered!");
+      return;
+    }
+  }
+  else if (mp_encode_ext_lua_type(L, ud, idx, (int8_t)LUACMSGPACK_LUATYPE_EXT(LUA_TTABLE))) {
+    /* do nothing */
+  }
+  else {
+    lua_pack_table(L, ud, idx, level);
+  }
+}
+
+static inline void lua_pack_parse_string (lua_State *L, lua_msgpack *ud, int idx) {
+  msgpack_packer *pk = &(ud->u.packed.packer);
+
+  /*
+  ** Fallback to empty string if the value at the specified index is not a
+  ** string or its object can be converted into a string.
+  */
+  size_t len = 0;
+  const char *s = NULL;
+  if ((s = lua_tolstring(L, idx, &len)) == NULL) {
+    len = 0;
+    s = "";
+  }
+
+  if ((ud->flags & MP_STRING_COMPAT) == MP_STRING_COMPAT) {
+    msgpack_pack_v4raw(pk, len);
+    msgpack_pack_v4raw_body(pk, s, len);
+  }
+  else if ((ud->flags & MP_STRING_BINARY) == MP_STRING_BINARY) {
+    msgpack_pack_bin(pk, len);
+    msgpack_pack_bin_body(pk, s, len);
+  }
+  else {
+    msgpack_pack_str(pk, len);
+    msgpack_pack_str_body(pk, s, len);
+  }
+}
+
+static inline void lua_pack_type_extended (lua_State *L, lua_msgpack *ud, int idx) {
+  int t = lua_type(L, idx);
+  lua_Integer type = 0;
+  if ((type = mp_ext_type(L, idx)) != EXT_INVALID) {
+    if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)type)) {
+      luaL_error(L, "msgpack extension type: not registered!");
+      return;
+    }
+  }
+  else if (mp_encode_ext_lua_type(L, ud, idx, (int8_t)LUACMSGPACK_LUATYPE_EXT(t))) {
+    /* do nothing */
+  }
+  else {
+    luaL_error(L, "type <%s> cannot be msgpack'd", lua_typename(L, t));
+  }
+}
+
+static inline void lua_pack_any (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  int t = lua_type(L, idx);
+#if defined(LUACMSGPACK_ERROR_NESTING)
+  if (t == LUA_TTABLE && level >= LUACMSGPACK_MAX_NESTING) {
+    luaL_error(L, "maximum table nesting depth exceeded");
+    return;
+  }
+#else
+  if (t == LUA_TTABLE && level == LUACMSGPACK_MAX_NESTING)
+    t = LUA_TNIL;
+#endif
+
+  switch (t) {
+    case LUA_TNIL: msgpack_pack_nil(&(ud->u.packed.packer)); break;
+    case LUA_TBOOLEAN: lua_pack_boolean(L, ud, idx); break;
+    case LUA_TNUMBER: lua_pack_number(L, ud, idx); break;
+    case LUA_TSTRING: lua_pack_parse_string(L, ud, idx); break;
+    case LUA_TTABLE: lua_pack_extended_table(L, ud, idx, level); break;
+    case LUA_TUSERDATA:
+    case LUA_TTHREAD:
+    case LUA_TFUNCTION:
+      lua_pack_type_extended(L, ud, idx);
+      break;
+    case LUA_TLIGHTUSERDATA: {
+      /*
+      ** TODO: Improve how light userdata is managed. Ideally, there will be
+      **       API function lua_msgpack_type_extension( ..., lua_CFunction,
+      **       lua_CFunction) that handles the serialization of C pointers.
+      */
+      if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)LUACMSGPACK_LUATYPE_EXT(t))) {
+        msgpack_packer *pk = &(ud->u.packed.packer);
+#if defined(LUACMSGPACK_BIT32)
+        msgpack_pack_uint32(pk, (uint32_t)lua_touserdata(L, idx));
+#else
+        msgpack_pack_uint64(pk, (uint64_t)lua_touserdata(L, idx));
+#endif
+      }
+      break;
+    }
+    default:
+      luaL_error(L, "type <%s> cannot be msgpack'd", lua_typename(L, t));
+      break;
+  }
 }
 
 /* }================================================================== */

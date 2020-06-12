@@ -65,6 +65,40 @@ LUALIB_API int mp_unpack (lua_State *L);
 LUALIB_API int mp_unpack_next (lua_State *L);
 
 /*
+** new(): Create a new packer userdata that can be used to msgpack Lua values.
+**  Metamethods:
+**    __len: Return the length of the current msgpack encoded string.
+**    __tostring: Return the current msgpack encoded string.
+**    __concat: Append (msgpack encoded) strings to the packer.
+**    __call, __add, __shl: (>= 5.3): Encode, and append, the provided Lua
+**      values.
+**    __index: Functions of the form: f(packer, [, value [, ... [, value]...]])
+**      Where the values are casted to the named type:
+**        "nil",
+**        "any",
+**        "boolean", "true", "false",
+**        "fix_uint8", "fix_uint16", "fix_uint32", "fix_uint64",
+**        "fix_int8", "fix_int16", "fix_int32", "fix_int64",
+**        "uint8", "uint16", "uint32", "uint64",
+**        "int8", "int16", "int32", "int64",
+**        "char", "signed_char", "unsigned_char",
+**        "short", "integer", "long", "long_long",
+**        "unsigned_short", "unsigned_int", "unsigned_long", "unsigned_long_long",
+**        "integer", "signed", "unsigned",
+**        "float", "double", "number",
+**        "_string", "string_compat", "string", "binary",
+**        "_table", "map", "array", "table",
+**
+**  Example Usage:
+**    ud = msgpack.new()
+**    ud(1, 2, math.pi) -- encode & append: { 1, 2, math.pi }.
+**    ud .. tostring(ud) -- Appends msgpack sequences: { 1, 2, math.pi, 1, 2, math.pi }.
+**    msgpack.unpack(tostring(ud)) -- Unpacks the current msgpack stream
+**    ud << 4.0 -- encode & append 4: { 1, 2, math.pi, 1, 2, math.pi, 4 }.
+*/
+LUALIB_API int mp_packer_new (lua_State *L);
+
+/*
 ** extend(encoder_table): Register an extension-type. The encoder_table is often
 ** a metatable with additional metamethods for serializing tables/userdata:
 **   __ext: Unique msgpack extension identifier. Note that applications can only

@@ -191,6 +191,39 @@ function m.set_function()
     })
 end
 
+--[[
+    Reserves -7 as an extension type identifier for generic tables and their
+    packed metatables. To reserve a value between 0 and 127:
+        m.extend({
+            __ext = 42,
+            ...
+        })
+
+        m.settype("table", 42)
+--]]
+function m.table_with_meta()
+    m.settype("table", {
+        __pack = function(tab, t)
+            local ud = m.new()
+            local custom = false
+
+            local mt = getmetatable(tab)
+            if mt then
+                ud:_table(tab)
+                ud:table(mt)
+            else
+                custom = true
+                ud:_table(tab)
+            end
+            return tostring(ud),custom
+        end,
+        __unpack = function(s, t)
+            local tab,mt = m.unpack(s)
+            return setmetatable(tab, mt)
+        end,
+    })
+end
+
 ---------------------------------------
 --------------- Options ---------------
 ---------------------------------------
