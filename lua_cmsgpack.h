@@ -13,7 +13,7 @@
 #include <lauxlib.h>
 
 #include "msgpack/pack.h"
-#include "msgpack/unpack.h"
+#include "msgpack/zone.h"
 
 /* @TODO: Support 16-bit Lua */
 #if !defined(LUACMSGPACK_BIT32) && UINTPTR_MAX == UINT_MAX
@@ -106,7 +106,9 @@ typedef struct lua_msgpack {
       msgpack_packer packer;
       lua_mpbuffer buffer;
     } packed;
-    msgpack_unpacked unpacked;
+    struct {
+      msgpack_zone zone;
+    } unpacked;
   } u;
 } lua_msgpack;
 

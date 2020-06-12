@@ -21,6 +21,14 @@
 #define IS_INT64_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int64_t)
 #define IS_INT_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int)
 
+/*
+** Default chunk msgpack_zone chunk size.
+**
+** @TODO: Experiment with changing this (and other values) based on some input
+**        heuristic.
+*/
+#define LUACMSGPACK_ZONE_CHUNK_SIZE 256
+
 /* Lua 5.4 changed the definition of lua_newuserdata; no uservalues required */
 #if LUA_VERSION_NUM >= 504
   #define mp_newuserdata(L, s) lua_newuserdatauv((L), (s), 0)
@@ -340,7 +348,10 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
     msgpack_packer_init(&ud->u.packed.packer, &ud->u.packed.buffer, lua_mpbuffer_append);
   }
   else if (mode & MP_UNPACKING) {
-    msgpack_unpacked_init(&(ud->u.unpacked));
+    if (!msgpack_zone_init(&ud->u.unpacked.zone, LUACMSGPACK_ZONE_CHUNK_SIZE)) {
+      luaL_error(L, "Could not allocate msgpack_zone_init");
+      return NULL;
+    }
   }
   else {
     luaL_error(L, "invalid msgpack mode");
@@ -364,7 +375,7 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
       lua_mpbuffer_free(&ud->u.packed.buffer);
     }
     else if (ud->flags & MP_UNPACKING) {
-      msgpack_unpacked_destroy(&(ud->u.unpacked));
+      msgpack_zone_destroy(&ud->u.unpacked.zone);
     }
     ud->flags = 0;
 
@@ -483,10 +494,11 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
   int object_count = 0;
   const char *err_msg = NULL;  /* luaL_error message on failure */
   while (err_msg == NULL && !done) {
-    switch (msgpack_unpack_next(&(ud->u.unpacked), s, len, offset)) {
+    msgpack_object obj;
+    switch (msgpack_unpack(s, len, offset, &ud->u.unpacked.zone, &obj)) {
       case MSGPACK_UNPACK_SUCCESS: {
-        if (mp_decode_to_lua_type(L, &(ud->u.unpacked.data))) {
-          done = (++object_count >= limit && limit > 0) || *offset == len;
+        if ((done = mp_decode_to_lua_type(L, &obj))) {
+          ++object_count;
         }
         else {
           err_msg = "could not unpack final type";
@@ -494,7 +506,7 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
         break;
       }
       case MSGPACK_UNPACK_EXTRA_BYTES: {
-        if (mp_decode_to_lua_type(L, &(ud->u.unpacked.data))) {
+        if (mp_decode_to_lua_type(L, &obj)) {
           done = (++object_count >= limit && limit > 0);
         }
         else {
@@ -638,7 +650,7 @@ LUALIB_API int mp_unpack (lua_State *L) {
   top = lua_gettop(L);
   len = (sub_len == 0) ? len : (offset + sub_len);
   if ((count = lua_msgpack_decode(L, ud, s, len, &offset, limit, &err_msg)) == 0) {
-    msgpack_unpacked_destroy(&(ud->u.unpacked)); ud->flags = 0;
+    msgpack_zone_destroy(&ud->u.unpacked.zone); ud->flags = 0;
     return luaL_error(L, err_msg);
   }
 
