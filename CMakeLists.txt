@@ -112,16 +112,11 @@ include(ExternalProject)
 ExternalProject_Add(msgpack
     PREFIX ${MSGPACK_C}
     GIT_REPOSITORY https://github.com/msgpack/msgpack-c.git
-    GIT_TAG "master"
-    CMAKE_ARGS -DMSGPACK_BUILD_EXAMPLES=OFF
-                  -DMSGPACK_BUILD_TESTS=OFF
-                  -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
-                  -DBUILD_TESTING=OFF
+    GIT_TAG "c_master"
+    CMAKE_ARGS += -DMSGPACK_BUILD_EXAMPLES=OFF
+                  -DMSGPACK_BUILD_TESTS=ON
                   -DBUILD_SHARED_LIBS=OFF
-                  -DMSGPACK_ENABLE_CXX=OFF
-                  -DMSGPACK_CXX17=ON
-                  -DMSGPACK_BOOST=ON
-                  -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+                  -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
                   ${MSGPACK_C_32BIT}
     BUILD_COMMAND make
     INSTALL_COMMAND ""
