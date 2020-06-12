@@ -100,6 +100,37 @@ LUALIB_API int mp_get_extension (lua_State *L);
 LUALIB_API int mp_clear_extension (lua_State *L);
 
 /*
+** settype(association) : Associate the name of a Lua type (see: lua_typename)
+** to a encoder table, and possibly a unique MessagePack extension
+** type identifier.
+**
+**  The "association" can either be an extension-type identifier (integer),
+**  e.g., cmsgpack.settype("function", 0x10); or an additional encoder table:
+**    m.settype("function", {
+**      __pack = function(self, t)
+**        return cmsgpack.pack( ... )
+**      end,
+**      __unpack = function(s, t)
+**        local ... = cmsgpack.unpack
+**          return function() -- An iterator factory
+**            -- Do something with ...
+**          end
+**      end,
+**    })
+**
+** NOTES:
+**  Implemented for only LUA_TUSERDATA, LUA_TTHREAD, and LUA_TFUNCTION. The
+**  performance impact of a metatable lookup for each primitive type is to much.
+**
+** RETURN:
+**  The encoder-table passed as an argument.
+*/
+LUALIB_API int mp_set_type_extension (lua_State *L);
+
+/* Get the encoder table associated to the name of a Lua type. */
+LUALIB_API int mp_get_type_extension (lua_State *L);
+
+/*
 ** BOOLEAN:
 **  unsigned - Encode integers as unsigned integers/values.
 **  integer - Encodes lua_Number's as, possibly unsigned, integers, regardless of type.

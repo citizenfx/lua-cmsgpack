@@ -114,6 +114,12 @@ typedef struct lua_mpbuffer {
 /* Potentially reserve types... */
 #define LUACMSGPACK_EXT_RESERVED(i) 0
 
+/*
+** msgpack reserves -1 for timestamps. Therefore, LUA_TNIL would be mapped to
+** -2, LUA_TFUNCTION -8, etc.
+*/
+#define LUACMSGPACK_LUATYPE_EXT(x) (-(x + 2))
+
 /* A value not within LUACMSGPACK_EXT_VALID */
 #define EXT_INVALID -1024
 

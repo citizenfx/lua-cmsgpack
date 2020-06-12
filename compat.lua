@@ -93,6 +93,39 @@ function m.set_timestamp()
     })
 end
 
+--[[
+    string.dump function
+
+    Reserves -8 as an extension type identifier for functions. To reserve a
+    value between 0 and 127:
+        m.extend({
+            __ext = 42,
+            __pack = ...
+            __unpack = ...
+        })
+
+        m.settype("function", 42)
+
+NOTES:
+    Use the debug library to serialize and reload the upvalues of a function in
+    a way adequate to your needs.
+--]]
+function m.set_function()
+    local function_ext = 7
+    local loadstring = loadstring or load
+
+    m.settype("function", {
+        __pack = function(fct, t)
+            assert(type(fct) == "function", "is function")
+            return m.pack(assert(string.dump(fct), "function pack"))
+        end,
+        __unpack = function(s, t)
+            local str = m.unpack(s)
+            return assert(loadstring(str), "function unpack")
+        end,
+    })
+end
+
 ---------------------------------------
 --------------- Options ---------------
 ---------------------------------------
