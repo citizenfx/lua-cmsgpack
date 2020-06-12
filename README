@@ -1,0 +1,46 @@
+lua-cmsgpack: Development Branch
+===
+
+lua-cmsgpack is a msgpack-c (https://github.com/msgpack/msgpack-c) binding for
+Lua 5.1, 5.2, 5.3, and 5.4 in a once self-contained C file *with* external
+dependencies and the intention of being pseudo-ABI compatible with
+lua-MessagePack.
+
+API:
+  Documentation pending; see lua_cmsgpacklib.h for library API and
+  lua_cmsgpack.h for an internal API.
+
+Options:
+  see lua_cmsgpacklib.h
+
+Building:
+  CMake:
+    LUACMSGPACK_BIT32: Build a -m32 module.
+    LUACMSGPACK_DEBUG: Include <ltests.h>
+    LUACMSGPACK_SAFE: Wrap all msgpack API functions in an internal pcall.
+
+  Additional preprocessor definitions:
+    LUACMSGPACK_DEBUG: Include <ltests.h>
+    LUACMSGPACK_UNSAFE: Disables usage of luaL_checkstack and all Lua stack
+      protections (at least wrt. the C API).
+    LUACMSGPACK_SAFE: API functions wrapped in a pcall.
+    LUACMSGPACK_ERROR_NESTING: Maximum recursive depth for nested tables;
+      default: 16.
+    LUACMSGPACK_LUA_EXTENSIONS: A Lua-specific option to allow the usage of
+      negative extension type identifiers when encoding abstract Lua types
+      (function, thread, etc.).
+
+Sources & Acknowledgments:
+  msgpack-c: https://github.com/msgpack/msgpack-c
+  lua-cmsgpack: https://github.com/antirez/lua-cmsgpack written by
+    Salvatore Sanfilippo for Redis, but is maintained as a separated project by
+    the author.
+  MessagePack-JS: Some of the test vectors in "test.lua" are obtained from the
+    MessagePack-JS library: https://github.com/cuzic/MessagePack-JS
+  lua-MessagePack: https://fperrad.frama.io/lua-MessagePack/
+
+TODO:
+  Test library with JIT implementations of Lua.
+
+License:
+  See LICENSE

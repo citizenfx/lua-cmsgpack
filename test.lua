@@ -3,11 +3,9 @@
 -- See the copyright notice at the end of lua_cmsgpack.c for more information.
 
 local cmsgpack = require "cmsgpack"
-local ok, cmsgpack_safe = pcall(require, 'cmsgpack.safe')
-if not ok then cmsgpack_safe = nil end
 
 print("------------------------------------")
-print("Lua version: " .. (_G.jit and _G.jit.version or _G._VERSION))
+print("Lua version: " .. (_G._VERSION))
 print("------------------------------------")
 
 local unpack = unpack or table.unpack
@@ -50,6 +48,12 @@ function unhex(h)
 end
 
 function test_error(name, fn)
+    if cmsgpack.safe() then
+        print("skip: `cmsgpack.safe` module")
+        skipped = skipped + 1
+        return
+    end
+
     io.write("Testing generate error '",name,"' ...")
     local ok, ret, err = pcall(fn)
     -- 'ok' is an error because we are testing for expicit *failure*
@@ -75,7 +79,7 @@ end
 
 function test_noerror(name, fn)
     io.write("Testing safe calling '",name,"' ...")
-    if not cmsgpack_safe then
+    if not cmsgpack.safe() then
         print("skip: no `cmsgpack.safe` module")
         skipped = skipped + 1
         return
@@ -124,11 +128,6 @@ end
 
 function test_stream(mod, name, ...)
     io.write("Stream test '", name, "' ...\n")
-    if not mod then
-        print("skip: no `cmsgpack.safe` module")
-        skipped = skipped + 1
-        return
-    end
     local argc = select('#', ...)
     for i=1, argc do
         test_circular(name, select(i, ...))
@@ -169,21 +168,21 @@ function test_partial_unpack(name, count, ...)
         pack = first.p
         args = first.remaining
         offset = first.o
-        cargs = {pack, count, offset}
+        cargs = {pack, offset, count}
     else
         pack = cmsgpack.pack(unpack({...}))
         args = {...}
-        cargs = {pack, count}
+        cargs = {pack, 1, count}
     end
-    if offset and offset < 0 then
-        ok, unpacked, err = pcall(function()return {cmsgpack.unpack_limit(unpack(cargs))} end)
+    if offset and offset <= 0 then
+        ok, unpacked, err = pcall(function()return {cmsgpack.next(unpack(cargs))} end)
         if not ok then
             print("ok; received error as expected") --, unpacked)
             passed = passed + 1
             return
         end
     else
-        unpacked = {cmsgpack.unpack_limit(unpack(cargs))}
+        unpacked = {cmsgpack.next(unpack(cargs))}
         -- print ("GOT RETURNED:", unpack(unpacked))
     end
 
@@ -194,7 +193,7 @@ function test_partial_unpack(name, count, ...)
     end
 
     if not (((#unpacked)-1) == count) then
-        print(string.format("ERROR: received %d instead of %d objects:", (#unpacked)-1, count),
+        error(string.format("ERROR: received %d instead of %d objects:", (#unpacked)-1, count),
             unpack(select(1, unpacked)))
         failed = failed + 1
         return
@@ -233,7 +232,7 @@ end
 
 function test_unpack_one(name, packed, check, offset)
     io.write("Testing one unpack '",name,"' ...")
-    local unpacked = {cmsgpack.unpack_one(unpack({packed, offset}))}
+    local unpacked = {cmsgpack.next(unpack({packed, offset, 1}))}
 
     if #unpacked > 2 then
         print("ERROR: unpacked more than one object:", unpack(unpacked))
@@ -263,28 +262,6 @@ end
 function test_pack_and_unpack(name,obj,raw)
     test_pack(name,obj,raw)
     test_unpack(name,raw,obj)
-end
-
-local function test_global()
-    io.write("Testing global variable ...")
-
-    if _VERSION == "Lua 5.1" then
-        if not _G.cmsgpack then
-            print("ERROR: Lua 5.1 should set global")
-            failed = failed+1
-        else
-            print("ok")
-            passed = passed+1
-        end
-    else
-        if _G.cmsgpack then
-            print("ERROR: Lua 5.2 should not set global")
-            failed = failed+1
-        else
-            print("ok")
-            passed = passed+1
-        end
-    end
 end
 
 local function test_array()
@@ -324,7 +301,6 @@ local function test_array()
     end
 end
 
-test_global()
 test_array()
 test_circular("positive fixnum",17);
 test_circular("negative fixnum",-1);
@@ -381,6 +357,8 @@ test_pack_and_unpack("int64",-1099511627776,"d3ffffff0000000000")
 test_pack_and_unpack("raw8","                                 ","d921202020202020202020202020202020202020202020202020202020202020202020")
 test_pack_and_unpack("raw16","                                                                                                                                                                                                                                                                 ","da01012020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020")
 test_pack_and_unpack("array 16",{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},"dc001000000000000000000000000000000000")
+test_unpack("bin8", "c421202020202020202020202020202020202020202020202020202020202020202020", "                                 ")
+test_unpack("bin16", "c501012020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020", "                                                                                                                                                                                                                                                                 ")
 
 -- Regression test for issue #4, cyclic references in tables.
 a = {x=nil,y=5}
@@ -411,22 +389,20 @@ test_circular("map with float keys", {[1.5] = {1,2,3}})
 test_error("unpack nil", function() cmsgpack.unpack(nil) end)
 test_error("unpack table", function() cmsgpack.unpack({}) end)
 test_error("unpack udata", function() cmsgpack.unpack(io.stdout) end)
-test_noerror("unpack nil", function() cmsgpack_safe.unpack(nil) end)
-test_noerror("unpack nil", function() cmsgpack_safe.unpack(nil) end)
-test_noerror("unpack table", function() cmsgpack_safe.unpack({}) end)
-test_noerror("unpack udata", function() cmsgpack_safe.unpack(io.stdout) end)
+test_noerror("unpack nil", function() cmsgpack.unpack(nil) end)
+test_noerror("unpack nil", function() cmsgpack.unpack(nil) end)
+test_noerror("unpack table", function() cmsgpack.unpack({}) end)
+test_noerror("unpack udata", function() cmsgpack.unpack(io.stdout) end)
 test_multiple("two ints", 1, 2)
 test_multiple("holes", 1, nil, 2, nil, 4)
 
 -- Streaming/Multi-Input Tests
 test_stream(cmsgpack, "simple", {a=1}, {b=2}, {c=3}, 4, 5, 6, 7)
-test_stream(cmsgpack_safe, "safe simple", {a=1}, {b=2}, {c=3}, 4, 5, 6, 7)
+test_stream(cmsgpack, "safe simple", {a=1}, {b=2}, {c=3}, 4, 5, 6, 7)
 test_stream(cmsgpack, "oddities", {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {0}, {a=64}, math.huge, -math.huge)
-test_stream(cmsgpack_safe, "safe oddities", {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, {0}, {a=64}, math.huge, -math.huge)
 test_stream(cmsgpack, "strange things", nil, {}, {nil}, a, b, b, b, a, a, b, {c = a, d = b})
-test_stream(cmsgpack_safe, "strange things", nil, {}, {nil}, a, b, b, b, a, a, b, {c = a, d = b})
 test_error("pack nothing", function() cmsgpack.pack() end)
-test_noerror("pack nothing safe", function() cmsgpack_safe.pack() end)
+test_noerror("pack nothing safe", function() cmsgpack.pack() end)
 test_circular("large object test",
     {A=9483, a=9483, aa=9483, aal=9483, aalii=9483, aam=9483, Aani=9483,
     aardvark=9483, aardwolf=9483, Aaron=9483, Aaronic=9483, Aaronical=9483,
@@ -559,6 +535,12 @@ test_partial_unpack("unpack remaining 4", 4, {p=packed,o=offset,remaining={"d", 
 test_unpack_one("simple", packed, "a")
 offset = test_unpack_one("simple", cmsgpack.pack({f = 3, j = 2}, "m", "e", 7), {f = 3, j = 2})
 test_unpack_one("simple", cmsgpack.pack({f = 3, j = 2}, "m", "e", 7), "m", offset)
+
+cmsgpack.setoption("sentinel", false)
+test_unpack("nullkey", "82c001a2696402", { id = 2, })
+
+cmsgpack.setoption("sentinel", true)
+test_unpack("nullsentinel", "82c001a2696402", { id = 2, [cmsgpack.sentinel] = 1, })
 
 -- Final report
 print()
