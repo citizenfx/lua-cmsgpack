@@ -63,18 +63,44 @@ typedef struct lua_mpbuffer {
   #define LUAMOD_API LUALIB_API
 #endif
 
+#define LUACMSGPACK_REG "lua_cmsgpack"
+#define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
 #define LUACMSGPACK_USERDATA "LUACMSGPACK"
 
 #define MP_OPEN                0x01  /* Userdata data resources are alive. */
 #define MP_PACKING             0x02  /* Deallocate packing structures */
 #define MP_UNPACKING           0x04  /* Deallocate unpacking structures */
 
+#define MP_UNSIGNED_INTEGERS   0x10  /* Encode integers as signed/unsigned values */
+#define MP_NUMBER_AS_INTEGER   0x20  /* */
+#define MP_NUMBER_AS_FLOAT     0x40  /* Encode lua_Numbers as floats (regardless of type) */
+#define MP_NUMBER_AS_DOUBLE    0x80  /* Reserved for inverse-toggling NUMBER_AS_FLOAT */
+#define MP_STRING_COMPAT       0x100  /* Use raw (V4) for encoding strings */
+#define MP_STRING_BINARY       0x200
+#define MP_EMPTY_AS_ARRAY      0x400 /* Empty table encoded as an array. */
+#define MP_ARRAY_AS_MAP        0x800  /* Encode table as <key,value> pairs */
+#define MP_ARRAY_WITH_HOLES    0x1000  /* Encode all tables with positive integer keys as arrays. */
+#define MP_ARRAY_WITHOUT_HOLES 0x2000  /* Only encode contiguous arrays as an array */
+
+#define MP_SMALL_LUA           0x4000 /* Compatibility only */
+#define MP_FULL_64_BITS        0x8000 /* Compatibility only */
+#define MP_LONG_DOUBLE         0x10000 /* */
+
 #define MP_MODE (MP_PACKING | MP_UNPACKING)
 #define MP_MASK_RUNTIME (MP_OPEN | MP_MODE)  /* flags that can't be setoption'd */
+#define MP_MASK_ARRAY (MP_ARRAY_AS_MAP | MP_ARRAY_WITH_HOLES | MP_ARRAY_WITHOUT_HOLES)
+#define MP_MASK_STRING (MP_STRING_COMPAT | MP_STRING_BINARY)
+#define MP_MASK_NUMBER (MP_NUMBER_AS_INTEGER | MP_NUMBER_AS_FLOAT | MP_NUMBER_AS_DOUBLE)
+
+#if defined(LUACMSGPACK_BIT32)
+  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_FLOAT | MP_STRING_COMPAT)
+#else
+  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_DOUBLE)
+#endif
 
 /* Userdata structure for managing/cleaning message packing */
 typedef struct lua_msgpack {
-  int flags;
+  lua_Integer flags;
   union {
     struct {
       msgpack_packer packer;
@@ -86,7 +112,7 @@ typedef struct lua_msgpack {
 
 
 /* Creates a new lua_msgpack userdata and pushes it onto the stack. */
-LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, int flags);
+LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags);
 
 /*
 ** Destroy a msgpack userdata and free any additional resources/memory allocated

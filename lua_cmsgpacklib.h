@@ -51,6 +51,28 @@ LUALIB_API int mp_pack (lua_State *L);
 */
 LUALIB_API int mp_unpack (lua_State *L);
 
+/*
+** BOOLEAN:
+**  unsigned - Encode integers as unsigned integers/values.
+**  integer - Encodes lua_Number's as, possibly unsigned, integers, regardless of type.
+**  float - Encodes lua_Number's as float, regardless of type.
+**  double - Encodes lua_Number's as double, regardless of type.
+**  string_compat: Use MessagePack v4's spec for encoding strings.
+**  string_binary: Encode strings using the binary tag.
+**  empty_table_as_array: empty tables encoded as arrays. Beware, when
+**    'always_as_map' is enabled, this flag is forced to disabled (and persists).
+**  without_hole: Only contiguous arrays (i.e., [1, N] all contain non-nil elements)
+**    to be encoded as arrays.
+**  with_hole: Allow tables to be encoded as arrays iff all keys are positive
+**    integers, inserting "nil"s when encoding to satisfy the array type.
+**  always_as_map: Encode all tables as a sequence of <key, value> pairs.
+**  small_lua: Compat
+**  full64bits: Compat
+**  long_double: Compat
+*/
+LUALIB_API int mp_setoption (lua_State *L);
+LUALIB_API int mp_getoption (lua_State *L);
+
 LUAMOD_API int luaopen_cmsgpack (lua_State *L);
 
 #endif
