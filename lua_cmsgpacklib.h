@@ -52,6 +52,19 @@ LUALIB_API int mp_pack (lua_State *L);
 LUALIB_API int mp_unpack (lua_State *L);
 
 /*
+** next(encoded_string [, offset [, limit [, sublen ]]]: Unpack all elements, up
+** to a potential limit, from a msgpack encoded string. Returning the offset in
+** the string where the decoding ended (or -1 for completion) and all decoded
+** objects, e.g,
+**
+**  local offset,element = 0,nil
+**  while offset ~= -1 do
+**    offset,element = msgpack.next(encoded_string, offset, 1)
+**  end
+*/
+LUALIB_API int mp_unpack_next (lua_State *L);
+
+/*
 ** extend(encoder_table): Register an extension-type. The encoder_table is often
 ** a metatable with additional metamethods for serializing tables/userdata:
 **   __ext: Unique msgpack extension identifier. Note that applications can only

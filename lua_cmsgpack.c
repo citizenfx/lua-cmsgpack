@@ -799,7 +799,7 @@ LUALIB_API int mp_pack (lua_State *L) {
   return 1;
 }
 
-LUALIB_API int mp_unpack (lua_State *L) {
+static int mp_unpacker (lua_State *L, int include_offset) {
   int top = 0, count = 0, limit = 0;
   size_t len = 0, offset = 0, sub_len = 0;
   lua_msgpack *ud = NULL;  /* Decoder */
@@ -807,8 +807,14 @@ LUALIB_API int mp_unpack (lua_State *L) {
   const char *err_msg = NULL;  /* Error message on decoding failure. */
   const char *s = luaL_checklstring(L, 1, &len);
   offset = luaL_optsizet(L, 2, 0);
-  limit = (int)luaL_optinteger(L, 3, 0);
+  limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
   sub_len = luaL_optsizet(L, 4, 0);
+
+  if (mp_isinteger(L, 2) && lua_tointeger(L, 2) < 0) {
+    lua_pushvalue(L, 2);
+    lua_pushnil(L);
+    return 2;
+  }
 
   /* @TODO: lua_pushfstring doesn't support %zu's for formatting errors... */
   if (len == 0)  /* edge-case sanitation */
@@ -831,10 +837,22 @@ LUALIB_API int mp_unpack (lua_State *L) {
     return luaL_error(L, err_msg);
   }
 
+  /* Insert the updated string offset at the beginning of the decoded sequence */
+  if (include_offset) {
+    mp_checkstack(L, 2);
+    lua_pushinteger(L, (offset < len) ? (lua_Integer)offset : -1);
+    lua_insert(L, top + 1);  /* one position above the allocated userdata */
+    count++;
+  }
+
   lua_msgpack_destroy(L, top, ud);  /* memory already managed */
   /* lua_remove(L, top);  let moveresults remove lua_msgpack */
   return count;
 }
+
+LUALIB_API int mp_unpack (lua_State *L) { return mp_unpacker(L, 0); }
+
+LUALIB_API int mp_unpack_next (lua_State *L) { return mp_unpacker(L, 1); }
 
 LUALIB_API int mp_get_extension (lua_State *L) {
   mp_checktype(L, luaL_checkinteger(L, 1), 1);
@@ -1095,6 +1113,7 @@ static int mp_set_number (lua_State *L) {
 static const luaL_Reg msgpack_lib[] = {
   { "pack", mp_pack },
   { "unpack", mp_unpack },
+  { "next", mp_unpack_next },
   /* Configuration */
   { "setoption", mp_setoption },
   { "getoption", mp_getoption },
