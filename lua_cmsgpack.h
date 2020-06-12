@@ -93,6 +93,7 @@ typedef struct lua_mpbuffer {
 #define MP_SMALL_LUA           0x4000 /* Compatibility only */
 #define MP_FULL_64_BITS        0x8000 /* Compatibility only */
 #define MP_LONG_DOUBLE         0x10000 /* */
+#define MP_USE_SENTINEL        0x20000 /* Replacement for nil table keys */
 
 #define MP_MODE (MP_PACKING | MP_UNPACKING)
 #define MP_MASK_RUNTIME (MP_OPEN | MP_MODE)  /* flags that can't be setoption'd */
