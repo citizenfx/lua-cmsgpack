@@ -25,7 +25,72 @@ end
 ---------- Cursors/Iterators ----------
 ---------------------------------------
 
---[[ Requires iterator functions to be re-integrated --]]
+--[[ Iterator function for msgpack.next'ing a string --]]
+local function cursor_string(str)
+    local p_pos,element = 1,nil
+    return function()
+        if p_pos < 1 then return nil,nil end
+
+        local pos = p_pos
+        p_pos,element = msgpack.next(str, pos, 1)
+        if p_pos < 0 then
+            error("missing bytes")
+        else
+            return pos,element
+        end
+    end
+end
+
+--[[ Iterator function for msgpack.next'ing a loader function --]]
+local function cursor_function(ld)
+    local s = ""
+    local i,j = 1,0
+    local offset = 1
+    local underflow = function()
+        s = s:sub(i)
+        i,j = 1,0
+
+        local chunk = ld()
+        if not chunk then
+            error("missing bytes")
+        end
+
+        s = s .. chunk
+        j = #s
+    end
+
+    return function()
+        if i > j and not pcall(underflow, i) then
+            return nil,nil
+        end
+
+        local p_off = offset
+        local n_pos,element = msgpack.next(s, i, 1)
+        while n_pos < 0 do
+            underflow()
+            n_pos,element = msgpack.next(s, i, 1)
+            if n_pos == 0 then
+                offset = offset + j - i + 1
+                s,i,j = "",1,0
+                return p_off,element
+            end
+        end
+
+        i = n_pos
+        offset = offset + n_pos - 1
+        return p_off,element
+    end
+end
+
+function m.unpacker (src)
+    if type(src) == "string" then
+        return cursor_string(src)
+    elseif type(src) == "function" then
+        return cursor_function(src)
+    else
+        argerror('unpacker', 1, "string or function expected, got " .. type(src))
+    end
+end
 
 --[[
 Example:

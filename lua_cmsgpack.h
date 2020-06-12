@@ -14,6 +14,7 @@
 #include <lauxlib.h>
 
 #include "msgpack/pack.h"
+#include "msgpack/unpack.h"
 #include "msgpack/zone.h"
 
 /* @TODO: Support 16-bit Lua */
@@ -190,7 +191,8 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int lev
 **    and error, with its message stored in "error".
 */
 LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
-                    size_t len, size_t *offset, int limit, const char **error);
+                                          size_t len, size_t *offset, int limit,
+                           const char **error, msgpack_unpack_return *err_code);
 
 /* }================================================================== */
 

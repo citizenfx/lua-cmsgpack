@@ -666,18 +666,21 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int lev
 }
 
 LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
-                    size_t len, size_t *offset, int limit, const char **error) {
+                                          size_t len, size_t *offset, int limit,
+                          const char **error, msgpack_unpack_return *err_code) {
   int done = 0;
   int object_count = 0;
+  msgpack_unpack_return err_res = MSGPACK_UNPACK_SUCCESS;
   const char *err_msg = NULL;  /* luaL_error message on failure */
   while (err_msg == NULL && !done) {
     msgpack_object obj;
-    switch (msgpack_unpack(s, len, offset, &ud->u.unpacked.zone, &obj)) {
+    switch ((err_res = msgpack_unpack(s, len, offset, &ud->u.unpacked.zone, &obj))) {
       case MSGPACK_UNPACK_SUCCESS: {
         if ((done = mp_decode_to_lua_type(L, &obj))) {
           ++object_count;
         }
         else {
+          err_res = MSGPACK_UNPACK_PARSE_ERROR;
           err_msg = "could not unpack final type";
         }
         break;
@@ -687,6 +690,7 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
           done = (++object_count >= limit && limit > 0);
         }
         else {
+          err_res = MSGPACK_UNPACK_PARSE_ERROR;
           err_msg = "could not unpack type";
         }
         break;
@@ -701,12 +705,14 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
         err_msg = "msgpack memory allocation failed";
         break;
       default:
+        err_res = MSGPACK_UNPACK_PARSE_ERROR;
         err_msg = "msgpack unknown decoder result";
         break;
     }
   }
 
   *error = err_msg;
+  *err_code = err_res;
   return (err_msg == NULL) ? object_count : 0;
 }
 
@@ -801,16 +807,18 @@ LUALIB_API int mp_pack (lua_State *L) {
 
 static int mp_unpacker (lua_State *L, int include_offset) {
   int top = 0, count = 0, limit = 0;
-  size_t len = 0, offset = 0, sub_len = 0;
+  size_t len = 0, position = 0, offset = 0, end_position = 0;
   lua_msgpack *ud = NULL;  /* Decoder */
 
+  msgpack_unpack_return err_code = MSGPACK_UNPACK_SUCCESS;
   const char *err_msg = NULL;  /* Error message on decoding failure. */
   const char *s = luaL_checklstring(L, 1, &len);
-  offset = luaL_optsizet(L, 2, 0);
+  position = luaL_optsizet(L, 2, 1);
   limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
-  sub_len = luaL_optsizet(L, 4, 0);
+  end_position = luaL_optsizet(L, 4, 0);
+  offset = position - 1;
 
-  if (mp_isinteger(L, 2) && lua_tointeger(L, 2) < 0) {
+  if (mp_isinteger(L, 2) && lua_tointeger(L, 2) <= 0) {
     lua_pushvalue(L, 2);
     lua_pushnil(L);
     return 2;
@@ -819,20 +827,31 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   /* @TODO: lua_pushfstring doesn't support %zu's for formatting errors... */
   if (len == 0)  /* edge-case sanitation */
     return 0;
+  else if (position == 0)
+    return luaL_error(L, "invalid string position: <0>");
   else if (limit < 0)
     return luaL_error(L, "invalid limit");
   else if (offset > len)
     return luaL_error(L, "start offset greater than input length");
-  else if (sub_len > 0 && sub_len > (len - offset))
-    return luaL_error(L, "ending offset greater than input sub-length");
+  else if (end_position > 0 && end_position < offset)
+    return luaL_error(L, "end position less than offset");
+  else if (end_position > 0 && end_position > len)
+    return luaL_error(L, "ending offset greater than input ending position");
 
   /* Allocate packer userdata and initialize metatables */
   if (!(ud = lua_msgpack_create(L, MP_UNPACKING)))
     return luaL_error(L, "could not allocate packer UD");
 
   top = lua_gettop(L);
-  len = (sub_len == 0) ? len : (offset + sub_len);
-  if ((count = lua_msgpack_decode(L, ud, s, len, &offset, limit, &err_msg)) == 0) {
+  len = (end_position == 0) ? len : end_position;
+  if ((count = lua_msgpack_decode(L, ud, s, len, &offset, limit, &err_msg, &err_code)) == 0) {
+    if (include_offset && err_code == MSGPACK_UNPACK_CONTINUE) {
+      lua_settop(L, top);
+      lua_pushinteger(L, -(lua_Integer)(offset + 1));
+      lua_pushnil(L);
+      return 2;
+    }
+
     msgpack_zone_destroy(&ud->u.unpacked.zone); ud->flags = 0;
     return luaL_error(L, err_msg);
   }
@@ -840,7 +859,12 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   /* Insert the updated string offset at the beginning of the decoded sequence */
   if (include_offset) {
     mp_checkstack(L, 2);
-    lua_pushinteger(L, (offset < len) ? (lua_Integer)offset : -1);
+    /*
+    ** @TODO: Possibly consider a flag MP_LIMIT_CAP that forces the limit
+    ** parameter to be an explicit expectation on the number of results.
+    ** Anything less it to be considered in error.
+    */
+    lua_pushinteger(L, (offset < len) ? (lua_Integer)(offset + 1) : 0);
     lua_insert(L, top + 1);  /* one position above the allocated userdata */
     count++;
   }

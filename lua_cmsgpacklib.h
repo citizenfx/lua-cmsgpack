@@ -31,7 +31,7 @@
 LUALIB_API int mp_pack (lua_State *L);
 
 /*
-** unpack(encoded_string [, offset [, limit [, substring]]]): Unpack all
+** unpack(encoded_string [, offset [, limit [, end_position]]]): Unpack all
 ** elements, up to a potential limit, from a msgpack encoded string. Returning
 ** the number of unpacked Lua objects.
 **
@@ -52,14 +52,14 @@ LUALIB_API int mp_pack (lua_State *L);
 LUALIB_API int mp_unpack (lua_State *L);
 
 /*
-** next(encoded_string [, offset [, limit [, sublen ]]]: Unpack all elements, up
-** to a potential limit, from a msgpack encoded string. Returning the offset in
-** the string where the decoding ended (or -1 for completion) and all decoded
-** objects, e.g,
+** next(encoded_string [, position [, limit [, end_position ]]]: Unpack all
+** elements, up to a potential limit, from a msgpack encoded string. Returning
+** the position in the string where the decoding ended (or 0 for completion)
+** and all decoded objects, e.g,
 **
-**  local offset,element = 0,nil
-**  while offset ~= -1 do
-**    offset,element = msgpack.next(encoded_string, offset, 1)
+**  local position,element = 1,nil
+**  while position ~= 0 do
+**    position,element = msgpack.next(encoded_string, position, 1)
 **  end
 */
 LUALIB_API int mp_unpack_next (lua_State *L);
