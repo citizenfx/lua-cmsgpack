@@ -83,6 +83,7 @@ typedef struct lua_mpbuffer {
 #define MP_OPEN                0x01  /* Userdata data resources are alive. */
 #define MP_PACKING             0x02  /* Deallocate packing structures */
 #define MP_UNPACKING           0x04  /* Deallocate unpacking structures */
+#define MP_EXTERNAL            0x08  /* Userdata */
 
 #define MP_UNSIGNED_INTEGERS   0x10  /* Encode integers as signed/unsigned values */
 #define MP_NUMBER_AS_INTEGER   0x20  /* */
@@ -100,7 +101,7 @@ typedef struct lua_mpbuffer {
 #define MP_LONG_DOUBLE         0x10000 /* */
 #define MP_USE_SENTINEL        0x20000 /* Replacement for nil table keys */
 
-#define MP_MODE (MP_PACKING | MP_UNPACKING)
+#define MP_MODE (MP_PACKING | MP_UNPACKING | MP_EXTERNAL)
 #define MP_MASK_RUNTIME (MP_OPEN | MP_MODE)  /* flags that can't be setoption'd */
 #define MP_MASK_ARRAY (MP_ARRAY_AS_MAP | MP_ARRAY_WITH_HOLES | MP_ARRAY_WITHOUT_HOLES)
 #define MP_MASK_STRING (MP_STRING_COMPAT | MP_STRING_BINARY)
@@ -141,9 +142,20 @@ typedef struct lua_msgpack {
     struct {
       msgpack_zone zone;
     } unpacked;
+    /* External packing API */
+    struct {
+      msgpack_packer packer;
+      lua_mpbuffer *buffer;
+#if LUA_VERSION_NUM < 503
+      int __ref;  /* Reference to buffer userdata */
+#endif
+    } external;
   } u;
 } lua_msgpack;
 
+/* The lua_mpbuffer instance associated with the active packer state */
+#define LUACMSGPACK_BUFFER(P) \
+  ((P)->flags & MP_EXTERNAL) ? (P)->u.external.buffer : &((P)->u.packed.buffer)
 
 /* Creates a new lua_msgpack userdata and pushes it onto the stack. */
 LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags);
@@ -207,6 +219,7 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
 ** msgpack string buffer
 ** ===================================================================
 */
+#define LUA_MPBUFFER_USERDATA "LUAMPBUFFER"
 
 #if !defined(MAX_SIZET)  /* llimits.h */
   #define MAX_SIZET ((size_t)(~(size_t)0))  /* maximum value for size_t */
@@ -273,6 +286,21 @@ static inline int lua_mpbuffer_append (void *data, const char *s, size_t len) {
   B->n += len;
   return 0;  /* LUA_OK */
 }
+
+static int lua_mpbuffer_gc (lua_State *L) {
+  lua_mpbuffer *B = ((lua_mpbuffer *)luaL_checkudata(L, 1, LUA_MPBUFFER_USERDATA));
+  if (B != NULL)
+    lua_mpbuffer_free(B);
+  return 0;
+}
+
+static const luaL_Reg mpbuffer_metafuncs[] = {
+  { "__gc", lua_mpbuffer_gc },
+#if LUA_VERSION_NUM >= 504
+  { "__close", lua_mpbuffer_gc },
+#endif
+  { NULL, NULL }
+};
 
 /* }================================================================== */
 
