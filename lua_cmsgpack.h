@@ -132,7 +132,7 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud);
 ** Ideally, a supplemental table would be used to track cycles. However, the
 ** general performance cost likely isn't worth it. @TODO: Experiment.
 */
-LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level);
+LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int level);
 
 /*
 ** MessageUnpack a specified number of elements at a specific offset within a

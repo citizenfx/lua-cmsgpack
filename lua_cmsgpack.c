@@ -77,6 +77,7 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj);
 ** msgpack-c bindings
 ** ===================================================================
 */
+#define mp_rel_index(idx, n) (((idx) < 0) ? ((idx) - (n)) : (idx))
 
 /*
 ** Return true if the table at the specified stack index can be encoded as an
@@ -86,14 +87,16 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj);
 ** However, with the flag "MP_ARRAY_WITH_HOLES" set, condition (4) is alleviated
 ** and msgpack can encode "null" in the nil array indices.
 */
-static int mp_table_is_an_array (lua_State *L, lua_Integer flags, size_t *array_length) {
+static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
+                                                         size_t *array_length) {
   lua_Integer n;
   size_t count = 0, max = 0;
   int stacktop = lua_gettop(L);
+  int i_idx = mp_rel_index(idx, 1);
 
   mp_checkstack(L, 2);
   lua_pushnil(L);
-  while (lua_next(L, -2)) {  /* [key, value] */
+  while (lua_next(L, i_idx)) {  /* [key, value] */
     lua_pop(L, 1);  /* [key] */
     if (mp_isinteger(L, -1)  /* && within range of size_t */
               && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)) {
@@ -124,27 +127,33 @@ static int mp_table_is_an_array (lua_State *L, lua_Integer flags, size_t *array_
 **    to compute this value.
 */
 static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
-                                               int level, size_t array_length) {
+                                      int idx, int level, size_t array_length) {
   size_t j;
+#if LUA_VERSION_NUM < 503
+  int i_idx = mp_rel_index(idx, 1);
+#endif
 
   msgpack_pack_array(&ud->u.packed.packer, array_length);
   mp_checkstack(L, 1);
   for (j = 1; j <= array_length; j++) {
 #if LUA_VERSION_NUM >= 503
-    lua_rawgeti(L, -1, (lua_Integer)j);
+    lua_rawgeti(L, idx, (lua_Integer)j);
 #else
     lua_pushinteger(L, (lua_Integer)j);
-    lua_rawget(L, -2);
+    lua_rawget(L, i_idx);
 #endif
-    lua_msgpack_encode(L, ud, level + 1);
+    lua_msgpack_encode(L, ud, -1, level + 1);
+    lua_pop(L, 1);  /* pop: t[j] */
   }
 }
 
 /*
 ** Encode the table at the specified stack index as a <key, value> array.
 */
-static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int level) {
+static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx,
+                                                                    int level) {
   size_t len = 0;
+  int i_idx = mp_rel_index(idx, 1);
 
   /*
   ** Count the number of <key, value> pairs in the table. It's impossible to
@@ -153,17 +162,17 @@ static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int level
   */
   mp_checkstack(L, 3);
   lua_pushnil(L);
-  while (lua_next(L, -2)) {
+  while (lua_next(L, i_idx)) {
     len++;
     lua_pop(L, 1);  /* remove value, keep key for next iteration. */
   }
 
   msgpack_pack_map(&ud->u.packed.packer, len);
   lua_pushnil(L);
-  while (lua_next(L, -2)) {
-    lua_pushvalue(L, -2);
-    lua_msgpack_encode(L, ud, level + 1);  /* Encode Key */
-    lua_msgpack_encode(L, ud, level + 1);  /* Encode Value */
+  while (lua_next(L, i_idx)) {
+    lua_msgpack_encode(L, ud, -2, level + 1);  /* Encode Key */
+    lua_msgpack_encode(L, ud, -1, level + 1);  /* Encode Value */
+    lua_pop(L, 1);  /* pop value, leave key for next iteration */
   }
 }
 
@@ -171,8 +180,8 @@ static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int level
 ** Earlier versions of Lua have no explicit integer types, therefore detect if
 ** floating types can be faithfully casted to an int.
 */
-static inline void mp_encode_lua_number (lua_State *L, lua_msgpack *ud) {
-  lua_Number n = lua_tonumber(L, -1);
+static inline void mp_encode_lua_number (lua_State *L, lua_msgpack *ud, int idx) {
+  lua_Number n = lua_tonumber(L, idx);
   lua_Integer flags = ud->flags;
   msgpack_packer *pk = &(ud->u.packed.packer);
 #if defined(LUACMSGPACK_BIT32)
@@ -367,8 +376,8 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
   return 0;
 }
 
-LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
-  int t = lua_type(L, -1);
+LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int level) {
+  int t = lua_type(L, idx);
   msgpack_packer *pk = &(ud->u.packed.packer);
 #if defined(LUACMSGPACK_ERROR_NESTING)
   if (t == LUA_TTABLE && level == LUACMSGPACK_MAX_NESTING) {
@@ -385,7 +394,7 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
       msgpack_pack_nil(pk);
       break;
     case LUA_TBOOLEAN: {
-      if (lua_toboolean(L, -1))
+      if (lua_toboolean(L, idx))
         msgpack_pack_true(pk);
       else
         msgpack_pack_false(pk);
@@ -393,33 +402,33 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
     }
     case LUA_TNUMBER: {
 #if LUA_VERSION_NUM < 503
-      mp_encode_lua_number(L, ud);
+      mp_encode_lua_number(L, ud, idx);
 #else
   #if defined(LUACMSGPACK_BIT32)
-      if (lua_isinteger(L, -1)) {
+      if (lua_isinteger(L, idx)) {
         if (ud->flags & MP_UNSIGNED_INTEGERS)
-          msgpack_pack_uint32(pk, (uint32_t)lua_tointeger(L, -1));
+          msgpack_pack_uint32(pk, (uint32_t)lua_tointeger(L, idx));
         else
-          msgpack_pack_int32(pk, (int32_t)lua_tointeger(L, -1));
+          msgpack_pack_int32(pk, (int32_t)lua_tointeger(L, idx));
       }
       else  /* still attempt to pack numeric types as integers when possible. */
-        mp_encode_lua_number(L, ud);
+        mp_encode_lua_number(L, ud, idx);
   #else
-      if (lua_isinteger(L, -1)) {
+      if (lua_isinteger(L, idx)) {
         if (ud->flags & MP_UNSIGNED_INTEGERS)
-          msgpack_pack_uint64(pk, (uint64_t)lua_tointeger(L, -1));
+          msgpack_pack_uint64(pk, (uint64_t)lua_tointeger(L, idx));
         else
-          msgpack_pack_int64(pk, (int64_t)lua_tointeger(L, -1));
+          msgpack_pack_int64(pk, (int64_t)lua_tointeger(L, idx));
       }
       else
-        mp_encode_lua_number(L, ud);
+        mp_encode_lua_number(L, ud, idx);
   #endif
 #endif
       break;
     }
     case LUA_TSTRING: {
       size_t len;
-      const char *s = lua_tolstring(L, -1, &len);
+      const char *s = lua_tolstring(L, idx, &len);
       if ((ud->flags & MP_STRING_COMPAT) == MP_STRING_COMPAT) {
         msgpack_pack_v4raw(pk, len);
         msgpack_pack_v4raw_body(pk, s, len);
@@ -437,13 +446,13 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
     case LUA_TTABLE: {
       size_t array_length = 0;
       if ((ud->flags & MP_ARRAY_AS_MAP) == MP_ARRAY_AS_MAP)
-        mp_encode_lua_table_as_map(L, ud, level);
-      else if (mp_table_is_an_array(L, ud->flags, &array_length)
+        mp_encode_lua_table_as_map(L, ud, idx, level);
+      else if (mp_table_is_an_array(L, idx, ud->flags, &array_length)
                      && (array_length > 0 || (ud->flags & MP_EMPTY_AS_ARRAY))) {
-        mp_encode_lua_table_as_array(L, ud, level, array_length);
+        mp_encode_lua_table_as_array(L, ud, idx, level, array_length);
       }
       else
-        mp_encode_lua_table_as_map(L, ud, level);
+        mp_encode_lua_table_as_map(L, ud, idx, level);
       break;
     }
     /*
@@ -454,9 +463,9 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
     case LUA_TLIGHTUSERDATA:
     case LUA_TUSERDATA:
 #if defined(LUACMSGPACK_BIT32)
-      msgpack_pack_uint32(pk, (uint32_t)lua_touserdata(L, -1));
+      msgpack_pack_uint32(pk, (uint32_t)lua_touserdata(L, idx));
 #else
-      msgpack_pack_uint64(pk, (uint64_t)lua_touserdata(L, -1));
+      msgpack_pack_uint64(pk, (uint64_t)lua_touserdata(L, idx));
 #endif
       break;
     case LUA_TTHREAD:
@@ -466,7 +475,6 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int level) {
       break;
     }
   }
-  lua_pop(L, 1);
 }
 
 LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
@@ -593,8 +601,7 @@ LUALIB_API int mp_pack (lua_State *L) {
 
   top = lua_gettop(L);
   for (i = 1; i <= nargs; i++) {
-    lua_pushvalue(L, i);
-    lua_msgpack_encode(L, ud, 0);  /* PopValue */
+    lua_msgpack_encode(L, ud, i, 0);
   }
 
   lua_pushlstring(L, ud->u.packed.buffer.b, ud->u.packed.buffer.n);
