@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 project(lua-cmsgpack C)
 option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
+option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
 
 # compile in release  mode by default
 if(NOT CMAKE_BUILD_TYPE)
@@ -57,6 +58,10 @@ if(UNIX)
         add_definitions(-DLUA_USER_H="ltests.h")
     else()
         add_compile_options(-O3)
+    endif()
+
+    if(LUACMSGPACK_SAFE)
+        add_definitions(-DLUACMSGPACK_SAFE)
     endif()
 
     if(LUACMSGPACK_BIT32)

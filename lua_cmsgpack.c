@@ -1110,6 +1110,39 @@ static int mp_set_number (lua_State *L) {
   return 0;
 }
 
+#if defined(LUACMSGPACK_SAFE)
+/* lua_cmsgpack.c */
+static int mp_safe (lua_State *L) {
+  int argc = lua_gettop(L), err, total_results;
+
+  /*
+  ** This adds our function to the bottom of the stack (the "call this function"
+  ** position)
+  */
+  lua_pushvalue(L, lua_upvalueindex(1));
+  lua_insert(L, 1);
+
+  err = lua_pcall(L, argc, LUA_MULTRET, 0);
+  total_results = lua_gettop(L);
+  if (err) {
+    lua_pushnil(L);
+    lua_insert(L,-2);
+    return 2;
+  }
+  return total_results;
+}
+
+static int mp_issafe (lua_State *L) {
+  lua_pushboolean(L, 1);
+  return 1;
+}
+#else
+static int mp_issafe (lua_State *L) {
+  lua_pushboolean(L, 0);
+  return 1;
+}
+#endif
+
 static const luaL_Reg msgpack_lib[] = {
   { "pack", mp_pack },
   { "unpack", mp_unpack },
@@ -1117,6 +1150,7 @@ static const luaL_Reg msgpack_lib[] = {
   /* Configuration */
   { "setoption", mp_setoption },
   { "getoption", mp_getoption },
+  { "safe", mp_issafe },
   /* Compat Configuration */
   { "set_string", mp_set_string },
   { "set_array", mp_set_array },
@@ -1136,6 +1170,18 @@ LUAMOD_API int luaopen_cmsgpack (lua_State *L) {
   luaL_register(L, LUACMSGPACK_NAME, msgpack_lib);
 #else
   luaL_newlib(L, msgpack_lib);
+#endif
+
+#if defined(LUACMSGPACK_SAFE)
+  {
+    size_t i;
+    /* Wrap all functions in the safe handler */
+    for (i = 0; i < (sizeof(msgpack_lib)/sizeof(*msgpack_lib) - 1); i++) {
+      lua_getfield(L, -1, msgpack_lib[i].name);
+      lua_pushcclosure(L, mp_safe, 1);
+      lua_setfield(L, -2, msgpack_lib[i].name);
+    }
+  }
 #endif
 
   /* metatable for packer userdata */
