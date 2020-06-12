@@ -43,6 +43,7 @@ CMakeCache.txt
 CMakeSettings.json
 CTestTestfile.cmake
 cmake_install.cmake
+msgpack-c/
 
 # Build results
 [Dd]ebug/
