@@ -340,7 +340,11 @@ test_circular("higher bits", -0x7FFFFFFFFFFFFFFF)
 
 test_pack_and_unpack("positive fixnum",0,"00")
 test_pack_and_unpack("negative fixnum",-1,"ff")
-test_pack_and_unpack("uint8",255,"ccff")
+if cmsgpack.getoption("unsigned") then
+    test_pack_and_unpack("uint8",255,"ccff")
+else
+    test_pack_and_unpack("uint8",255,"d100ff")
+end
 test_pack_and_unpack("fix raw","a","a161")
 test_pack_and_unpack("fix array",{0},"9100")
 test_pack_and_unpack("fix map",{a=64},"81a16140")
@@ -348,8 +352,15 @@ test_pack_and_unpack("nil",nil,"c0")
 test_pack_and_unpack("true",true,"c3")
 test_pack_and_unpack("false",false,"c2")
 test_pack_and_unpack("double",0.1,"cb3fb999999999999a")
-test_pack_and_unpack("uint16",32768,"cd8000")
-test_pack_and_unpack("uint32",1048576,"ce00100000")
+if cmsgpack.getoption("unsigned") then
+    test_pack_and_unpack("uint16",32768,"cd8000")
+    test_pack_and_unpack("uint32",1048576,"ce00100000")
+    test_pack_and_unpack("uint32+1",0x7FFFFFFF + 1,"ce80000000")
+else
+    test_pack_and_unpack("uint16",32768,"d200008000")
+    test_pack_and_unpack("uint32",1048576,"d200100000")
+    test_pack_and_unpack("uint32+1",0x7FFFFFFF + 1,"d30000000080000000")
+end
 test_pack_and_unpack("int8",-64,"d0c0")
 test_pack_and_unpack("int16",-1024,"d1fc00")
 test_pack_and_unpack("int32",-1048576,"d2fff00000")

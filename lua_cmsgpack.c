@@ -671,6 +671,10 @@ lua_msgpack_function(luaL_pack_fix_int16, lua_pack_fix_int16);
 lua_msgpack_function(luaL_pack_fix_int32, lua_pack_fix_int32);
 lua_msgpack_function(luaL_pack_fix_int64, lua_pack_fix_int64);
 
+lua_msgpack_function(luaL_pack_signed_int16, lua_pack_signed_int16);
+lua_msgpack_function(luaL_pack_signed_int32, lua_pack_signed_int32);
+lua_msgpack_function(luaL_pack_signed_int64, lua_pack_signed_int64);
+
 lua_msgpack_function(luaL_pack_float, lua_pack_float)
 lua_msgpack_function(luaL_pack_double, lua_pack_double)
 lua_msgpack_function(luaL_pack_integer, lua_pack_integer)
@@ -739,6 +743,9 @@ static const luaL_Reg packers[] = {
   { "unsigned_int", luaL_pack_unsigned_int, },
   { "unsigned_long", luaL_pack_unsigned_long, },
   { "unsigned_long_long", luaL_pack_unsigned_long_long, },
+  { "signed_int16", luaL_pack_signed_int16, },
+  { "signed_int32", luaL_pack_signed_int32, },
+  { "signed_int64", luaL_pack_signed_int64, },
   { NULL, NULL },
 };
 

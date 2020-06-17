@@ -179,7 +179,9 @@ LUALIB_API int mp_get_type_extension (lua_State *L);
 
 /*
 ** BOOLEAN:
-**  unsigned - Encode integers as unsigned integers/values.
+**  unsigned - Encode integers as unsigned values when possible, i.e., positive
+**    lua_Integers are msgpacked as unsigned int; this is default for
+**    lua-MessagePack.
 **  integer - Encodes lua_Number's as, possibly unsigned, integers, regardless of type.
 **  float - Encodes lua_Number's as float, regardless of type.
 **  double - Encodes lua_Number's as double, regardless of type.

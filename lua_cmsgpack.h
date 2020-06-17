@@ -16,6 +16,7 @@
 #include "msgpack/pack.h"
 #include "msgpack/unpack.h"
 #include "msgpack/zone.h"
+#include "lua_pack_template.h"
 
 /* @TODO: Support 16-bit Lua */
 #if !defined(LUACMSGPACK_BIT32) && UINTPTR_MAX == UINT_MAX
@@ -108,9 +109,9 @@ typedef struct lua_mpbuffer {
 #define MP_MASK_NUMBER (MP_NUMBER_AS_INTEGER | MP_NUMBER_AS_FLOAT | MP_NUMBER_AS_DOUBLE)
 
 #if defined(LUACMSGPACK_BIT32)
-  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_FLOAT | MP_STRING_COMPAT)
+  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_UNSIGNED_INTEGERS | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_FLOAT | MP_STRING_COMPAT)
 #else
-  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_DOUBLE)
+  #define MP_DEFAULT (MP_EMPTY_AS_ARRAY | MP_UNSIGNED_INTEGERS | MP_ARRAY_WITHOUT_HOLES | MP_NUMBER_AS_DOUBLE)
 #endif
 
 /* True if a lua_Integer is within the extension type range. */
@@ -409,6 +410,10 @@ lua_msgpack_int_func(lua_pack_fix_int16, msgpack_pack_fix_int16, int16_t);
 lua_msgpack_int_func(lua_pack_fix_int32, msgpack_pack_fix_int32, int32_t);
 lua_msgpack_int_func(lua_pack_fix_int64, msgpack_pack_fix_int64, int64_t);
 
+lua_msgpack_int_func(lua_pack_signed_int16, msgpack_pack_signed_int16, int16_t);
+lua_msgpack_int_func(lua_pack_signed_int32, msgpack_pack_signed_int32, int32_t);
+lua_msgpack_int_func(lua_pack_signed_int64, msgpack_pack_signed_int64, int64_t);
+
 lua_msgpack_number_func(lua_pack_float, msgpack_pack_float, float);
 lua_msgpack_number_func(lua_pack_double, msgpack_pack_double, double);
 
@@ -447,26 +452,26 @@ static inline void lua_pack_integer (lua_State *L, lua_msgpack *ud, int idx) {
 #if LUA_VERSION_NUM >= 503
   #if defined(LUACMSGPACK_BIT32)
   if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_uint32(pk, (uint32_t)lua_tointeger(L, idx));
-  else
     msgpack_pack_int32(pk, (int32_t)lua_tointeger(L, idx));
+  else
+    msgpack_pack_signed_int32(pk, (int32_t)lua_tointeger(L, idx));
   #else
   if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_uint64(pk, (uint64_t)lua_tointeger(L, idx));
-  else
     msgpack_pack_int64(pk, (int64_t)lua_tointeger(L, idx));
+  else
+    msgpack_pack_signed_int64(pk, (int64_t)lua_tointeger(L, idx));
   #endif
 #else
   #if defined(LUACMSGPACK_BIT32)
   if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_uint32(pk, (uint32_t)lua_tonumber(L, idx));
-  else
     msgpack_pack_int32(pk, (int32_t)lua_tonumber(L, idx));
+  else
+    msgpack_pack_signed_int32(pk, (int32_t)lua_tonumber(L, idx));
   #else
   if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_uint64(pk, (uint64_t)lua_tonumber(L, idx));
-  else
     msgpack_pack_int64(pk, (int64_t)lua_tonumber(L, idx));
+  else
+    msgpack_pack_signed_int64(pk, (int64_t)lua_tonumber(L, idx));
   #endif
 #endif
 }
