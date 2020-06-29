@@ -152,6 +152,18 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
   size_t count = 0, max = 0;
   int stacktop = lua_gettop(L);
   int i_idx = mp_rel_index(idx, 1);
+#if defined(GRIT_POWER_TTYPE)
+  switch (lua_tabletype(L, idx)) {
+    case LUA_TTEMPTY: *array_length = 0; return 1;
+    case LUA_TTARRAY:
+      if (!(flags & MP_ARRAY_WITH_HOLES)) {
+        *array_length = lua_rawlen(L, idx);
+        return 1;
+      }
+      break;
+    default: break;
+  }
+#endif
 
   mp_checkstack(L, 2);
   lua_pushnil(L);

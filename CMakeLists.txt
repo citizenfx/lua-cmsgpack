@@ -5,6 +5,7 @@ option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
 option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
 option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
+option (GRIT54_TTYPE "table.type API" OFF)
 
 # compile in release  mode by default
 if(NOT CMAKE_BUILD_TYPE)
@@ -67,6 +68,10 @@ if(UNIX)
 
     if(GRIT54_LONG)
         ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
+    endif()
+
+    if(GRIT54_TTYPE)
+        ADD_DEFINITIONS(-DGRIT_POWER_TTYPE)
     endif()
 
     if(LUACMSGPACK_BIT32)
