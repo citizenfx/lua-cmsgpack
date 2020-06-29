@@ -371,6 +371,15 @@ test_pack_and_unpack("array 16",{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},"dc00100000000
 test_unpack("bin8", "c421202020202020202020202020202020202020202020202020202020202020202020", "                                 ")
 test_unpack("bin16", "c501012020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020", "                                                                                                                                                                                                                                                                 ")
 
+local function test_pack_and_unpack_vector(name, obj)
+    test_pack_and_unpack(name, obj, hex(cmsgpack.pack(obj)))
+end
+
+test_pack_and_unpack_vector("vector2", vector2(math.pi, math.pi))
+test_pack_and_unpack_vector("vector3", vector3(math.pi, math.pi, math.pi))
+test_pack_and_unpack_vector("vector4", vector4(math.pi, math.pi, math.pi, math.pi))
+test_pack_and_unpack_vector("quat", quat(math.pi, math.pi, math.pi, math.pi))
+
 -- Regression test for issue #4, cyclic references in tables.
 a = {x=nil,y=5}
 b = {x=a}

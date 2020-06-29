@@ -1,8 +1,8 @@
-lua-cmsgpack: Development Branch
+lua-cmsgpack: grit/cfxLua Development Branch
 ===
 
 lua-cmsgpack is a msgpack-c (https://github.com/msgpack/msgpack-c) binding for
-Lua 5.1, 5.2, 5.3, and 5.4 in a once self-contained C file *with* external
+cfxLua 5.3 and cfxLua 5.4 in a once self-contained C file *with* external
 dependencies and the intention of being pseudo-ABI compatible with
 lua-MessagePack.
 

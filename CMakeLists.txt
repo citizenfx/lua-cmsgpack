@@ -4,6 +4,7 @@ project(lua-cmsgpack C)
 option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
 option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
+option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
 
 # compile in release  mode by default
 if(NOT CMAKE_BUILD_TYPE)
@@ -62,6 +63,10 @@ if(UNIX)
 
     if(LUACMSGPACK_SAFE)
         add_definitions(-DLUACMSGPACK_SAFE)
+    endif()
+
+    if(GRIT54_LONG)
+        ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
     endif()
 
     if(LUACMSGPACK_BIT32)
