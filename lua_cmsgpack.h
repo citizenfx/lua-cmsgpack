@@ -594,12 +594,12 @@ static inline void lua_pack_parse_string (lua_State *L, lua_msgpack *ud, int idx
 
 #if LUA_VEC_TYPE == LUA_FLOAT_FLOAT
   typedef uint32_t lua_VecI;
-  #define _msgpack_loadvec _msgpack_load32
-  #define _msgpack_storevec _msgpack_store32
+  #define _msgpack_loadvec _vectorpack_load32
+  #define _msgpack_storevec _vectorpack_store32
 #elif LUA_VEC_TYPE == LUA_FLOAT_DOUBLE
   typedef uint64_t lua_VecI;
-  #define _msgpack_loadvec _msgpack_load64
-  #define _msgpack_storevec _msgpack_store64
+  #define _msgpack_loadvec _vectorpack_load64
+  #define _msgpack_storevec _vectorpack_store64
 #elif LUA_VEC_TYPE == LUA_FLOAT_LONGDOUBLE
   #error "unsupported vector type"
 #else
