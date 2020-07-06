@@ -254,7 +254,16 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       uint32_t i = 0;
       msgpack_object_map map = obj->via.map;
 
-      lua_createtable(L, 0, (map.size <= INT_MAX) ? (int)map.size : 0);
+      /*
+      ** Compat: Technically, a map can be an "array_with_holes". Therefore, we
+      ** cannot preallocate the number of map records safely. Another workaround
+      ** would be to allocate the same number of table & array records, thereby
+      ** creating a "mixed" table where "unpack" and "rawlen" still work as
+      ** indended
+      */
+      /* lua_createtable(L, 0, (map.size <= INT_MAX) ? (int)map.size : 0); */
+
+      lua_newtable(L);
       mp_checkstack(L, 2);
       for (i = 0; i < map.size; ++i) {
         if (mp_decode_to_lua_type(L, &(map.ptr[i].key), flags)) {
