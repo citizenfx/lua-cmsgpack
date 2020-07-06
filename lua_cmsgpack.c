@@ -891,7 +891,7 @@ LUALIB_API int mp_pack (lua_State *L) {
   return 1;
 }
 
-static int mp_unpacker (lua_State *L, int include_offset) {
+static int mp_unpacker (lua_State *L, int compat_api, int include_offset) {
   int top = 0, count = 0, limit = 0;
   size_t len = 0, position = 0, offset = 0, end_position = 0;
   lua_msgpack *ud = NULL;  /* Decoder */
@@ -899,9 +899,16 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   msgpack_unpack_return err_code = MSGPACK_UNPACK_SUCCESS;
   const char *err_msg = NULL;  /* Error message on decoding failure. */
   const char *s = luaL_checklstring(L, 1, &len);
-  position = luaL_optsizet(L, 2, 1);
-  limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
-  end_position = luaL_optsizet(L, 4, 0);
+  if (compat_api) {
+    position = 1;
+    limit = include_offset ? 1 : 0;
+    end_position = 0;
+  }
+  else {
+    position = luaL_optsizet(L, 2, 1);
+    limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
+    end_position = luaL_optsizet(L, 4, 0);
+  }
   offset = position - 1;
 
   if (mp_isinteger(L, 2) && lua_tointeger(L, 2) <= 0) {
@@ -960,9 +967,11 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   return count;
 }
 
-LUALIB_API int mp_unpack (lua_State *L) { return mp_unpacker(L, 0); }
+LUALIB_API int mp_unpack (lua_State *L) { return mp_unpacker(L, 0, 0); }
 
-LUALIB_API int mp_unpack_next (lua_State *L) { return mp_unpacker(L, 1); }
+LUALIB_API int mp_unpack_compat (lua_State *L) { return mp_unpacker(L, 1, 0); }
+
+LUALIB_API int mp_unpack_next (lua_State *L) { return mp_unpacker(L, 0, 1); }
 
 LUALIB_API int mp_get_extension (lua_State *L) {
   mp_checktype(L, luaL_checkinteger(L, 1), 1);
@@ -1271,7 +1280,12 @@ static int mp_issafe (lua_State *L) {
 
 static const luaL_Reg msgpack_lib[] = {
   { "pack", mp_pack },
+#if defined(LUACMSGPACK_UNPACK_NEW)
   { "unpack", mp_unpack },
+#else
+  { "unpack", mp_unpack_compat },
+  { "unpack2", mp_unpack },
+#endif
   { "next", mp_unpack_next },
   /* Userdata/Packers API */
   { "new", mp_packer_new },
