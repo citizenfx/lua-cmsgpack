@@ -52,6 +52,11 @@ LUALIB_API int mp_pack (lua_State *L);
 LUALIB_API int mp_unpack (lua_State *L);
 
 /*
+** unpack(encoded_string): ABI compatible unpack, ignore additional arguments.
+*/
+LUALIB_API int mp_unpack_compat (lua_State *L);
+
+/*
 ** next(encoded_string [, position [, limit [, end_position ]]]: Unpack all
 ** elements, up to a potential limit, from a msgpack encoded string. Returning
 ** the position in the string where the decoding ended (or 0 for completion)

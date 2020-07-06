@@ -344,7 +344,16 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       uint32_t i = 0;
       msgpack_object_map map = obj->via.map;
 
-      lua_createtable(L, 0, (map.size <= INT_MAX) ? (int)map.size : 0);
+      /*
+      ** Compat: Technically, a map can be an "array_with_holes". Therefore, we
+      ** cannot preallocate the number of map records safely. Another workaround
+      ** would be to allocate the same number of table & array records, thereby
+      ** creating a "mixed" table where "unpack" and "rawlen" still work as
+      ** indended
+      */
+      /* lua_createtable(L, 0, (map.size <= INT_MAX) ? (int)map.size : 0); */
+
+      lua_newtable(L);
       mp_checkstack(L, 2);
       for (i = 0; i < map.size; ++i) {
         if (mp_decode_to_lua_type(L, &(map.ptr[i].key), flags)) {
@@ -1004,7 +1013,7 @@ LUALIB_API int mp_pack (lua_State *L) {
   return 1;
 }
 
-static int mp_unpacker (lua_State *L, int include_offset) {
+static int mp_unpacker (lua_State *L, int compat_api, int include_offset) {
   int top = 0, count = 0, limit = 0;
   size_t len = 0, position = 0, offset = 0, end_position = 0;
   lua_msgpack *ud = NULL;  /* Decoder */
@@ -1012,9 +1021,16 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   msgpack_unpack_return err_code = MSGPACK_UNPACK_SUCCESS;
   const char *err_msg = NULL;  /* Error message on decoding failure. */
   const char *s = luaL_checklstring(L, 1, &len);
-  position = luaL_optsizet(L, 2, 1);
-  limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
-  end_position = luaL_optsizet(L, 4, 0);
+  if (compat_api) {
+    position = 1;
+    limit = include_offset ? 1 : 0;
+    end_position = 0;
+  }
+  else {
+    position = luaL_optsizet(L, 2, 1);
+    limit = (int)luaL_optinteger(L, 3, include_offset ? 1 : 0);
+    end_position = luaL_optsizet(L, 4, 0);
+  }
   offset = position - 1;
 
   if (mp_isinteger(L, 2) && lua_tointeger(L, 2) <= 0) {
@@ -1073,9 +1089,11 @@ static int mp_unpacker (lua_State *L, int include_offset) {
   return count;
 }
 
-LUALIB_API int mp_unpack (lua_State *L) { return mp_unpacker(L, 0); }
+LUALIB_API int mp_unpack (lua_State *L) { return mp_unpacker(L, 0, 0); }
 
-LUALIB_API int mp_unpack_next (lua_State *L) { return mp_unpacker(L, 1); }
+LUALIB_API int mp_unpack_compat (lua_State *L) { return mp_unpacker(L, 1, 0); }
+
+LUALIB_API int mp_unpack_next (lua_State *L) { return mp_unpacker(L, 0, 1); }
 
 LUALIB_API int mp_get_extension (lua_State *L) {
   mp_checktype(L, luaL_checkinteger(L, 1), 1);
@@ -1384,7 +1402,12 @@ static int mp_issafe (lua_State *L) {
 
 static const luaL_Reg msgpack_lib[] = {
   { "pack", mp_pack },
+#if defined(LUACMSGPACK_UNPACK_NEW)
   { "unpack", mp_unpack },
+#else
+  { "unpack", mp_unpack_compat },
+  { "unpack2", mp_unpack },
+#endif
   { "next", mp_unpack_next },
   /* Userdata/Packers API */
   { "new", mp_packer_new },
