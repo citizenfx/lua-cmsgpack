@@ -540,10 +540,8 @@ static inline void lua_pack_table (lua_State *L, lua_msgpack *ud, int idx, int l
   size_t array_length = 0;
   if ((ud->flags & MP_ARRAY_AS_MAP) == MP_ARRAY_AS_MAP)
     mp_encode_lua_table_as_map(L, ud, idx, level);
-  else if (mp_table_is_an_array(L, idx, ud->flags, &array_length)
-                     && (array_length > 0 || (ud->flags & MP_EMPTY_AS_ARRAY))) {
+  else if (mp_table_is_an_array(L, idx, ud->flags, &array_length))
     mp_encode_lua_table_as_array(L, ud, idx, level, array_length);
-  }
   else
     mp_encode_lua_table_as_map(L, ud, idx, level);
 }
