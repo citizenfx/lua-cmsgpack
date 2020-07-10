@@ -25,6 +25,14 @@
 */
 #define LUACMSGPACK_ZONE_CHUNK_SIZE 256
 
+/*
+** Threshold for mp_table_is_an_array: If a table has an integer key greater
+** than this value, ensure at least half of the keys within the table have
+** elements to be encoded as an array; this addition is technically not
+** one-to-one with MessagePack.lua.
+*/
+#define MP_TABLE_CUTOFF 16
+
 /* Lua 5.4 changed the definition of lua_newuserdata; no uservalues required */
 #if LUA_VERSION_NUM >= 504
   #define mp_newuserdata(L, s) lua_newuserdatauv((L), (s), 1)
@@ -142,9 +150,12 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
   *array_length = max;
 
   lua_settop(L, stacktop);
-  if ((flags & MP_ARRAY_WITH_HOLES) == MP_ARRAY_WITH_HOLES)
-    return 1;  /* All integer keys, insert nils. */
-  return max == count;
+  if (max == count)
+    return max > 0 || (flags & MP_EMPTY_AS_ARRAY);
+  /* don't create an array with too many holes (inserted nils) */
+  else if (flags & MP_ARRAY_WITH_HOLES)
+    return ((max < MP_TABLE_CUTOFF) || (count >= (max >> 2)));
+  return 0;
 }
 
 static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
