@@ -182,7 +182,7 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
     return max > 0 || (flags & MP_EMPTY_AS_ARRAY);
   /* don't create an array with too many holes (inserted nils) */
   else if (flags & MP_ARRAY_WITH_HOLES)
-    return ((max < MP_TABLE_CUTOFF) || (count >= (max >> 2)));
+    return ((max < MP_TABLE_CUTOFF) || (count >= (max >> 1)));
   return 0;
 }
 
