@@ -318,6 +318,10 @@ static const luaL_Reg mpbuffer_metafuncs[] = {
 static lua_Integer mp_ext_type (lua_State *L, int idx);
 
 /*
+** Attempt to pack the data at the specified stack index, using the provided
+** extension-type identifier (ext_id). Returning non-zero on success; zero on
+** failure (e.g., extension type not registered).
+**
 ** @TODO: Missing level. With a poorly defined extension encoder, cycles can
 **  exist and the encoder level isn't propagated.
 */
@@ -527,7 +531,7 @@ static inline void lua_pack_extended_table (lua_State *L, lua_msgpack *ud, int i
     }
   }
   else if (mp_encode_ext_lua_type(L, ud, idx, (int8_t)LUACMSGPACK_LUATYPE_EXT(LUA_TTABLE))) {
-    /* do nothing */
+    /* do nothing; table has been packed with a custom extension */
   }
   else {
     lua_pack_table(L, ud, idx, level);
