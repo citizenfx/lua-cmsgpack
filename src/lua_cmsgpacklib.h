@@ -18,14 +18,11 @@
 
 /*
 ** pack(...): receives any number of arguments and MessagePacks their values.
-** Returning 1, corresponding to the encoded string/
+** Returning the encoded string.
 **
-** RULES:
-**  (0) Empty tables are encoded as arrays.
-**  (1) A table is converted into a MessagePack iff all of the table keys are
-**    composed of incrementing integers starting at 1.
-**  (2) A lua_Number is converted into an integer type if floor(num) == num;
-**    Otherwise, a lua_NUmber will always be packed as a double to avoid a loss
+** RULES: See mp_setoption.
+** NOTES: A lua_Number is converted into an integer type if floor(num) == num;
+**    Otherwise, a lua_Number will always be packed as a double to avoid a loss
 **    of precision.
 */
 LUALIB_API int mp_pack (lua_State *L);
@@ -74,9 +71,8 @@ LUALIB_API int mp_unpack_next (lua_State *L);
 **  Metamethods:
 **    __len: Return the length of the current msgpack encoded string.
 **    __tostring: Return the current msgpack encoded string.
-**    __concat: Append (msgpack encoded) strings to the packer.
-**    __call, __add, __shl: (>= 5.3): Encode, and append, the provided Lua
-**      values.
+**    __concat: Append another msgpack encoded strings to the packer.
+**    __call, __add, __shl: (>= 5.3): Encode, and append, the provided Lua values.
 **    __index: Functions of the form: f(packer, [, value [, ... [, value]...]])
 **      Where the values are casted to the named type:
 **        "nil",
@@ -89,6 +85,7 @@ LUALIB_API int mp_unpack_next (lua_State *L);
 **        "char", "signed_char", "unsigned_char",
 **        "short", "integer", "long", "long_long",
 **        "unsigned_short", "unsigned_int", "unsigned_long", "unsigned_long_long",
+**        "signed_int16", "signed_int32", "signed_int64",
 **        "integer", "signed", "unsigned",
 **        "float", "double", "number",
 **        "_string", "string_compat", "string", "binary",
@@ -96,10 +93,10 @@ LUALIB_API int mp_unpack_next (lua_State *L);
 **
 **  Example Usage:
 **    ud = msgpack.new()
-**    ud(1, 2, math.pi) -- encode & append: { 1, 2, math.pi }.
-**    ud .. tostring(ud) -- Appends msgpack sequences: { 1, 2, math.pi, 1, 2, math.pi }.
+**    ud(1, 2, math.pi) -- Append; current state: { 1, 2, math.pi }.
+**    ud .. tostring(ud) -- Duplicate; current state: { 1, 2, math.pi, 1, 2, math.pi }.
+**    ud::float(4.0) -- Append; current state: { 1, 2, math.pi, 1, 2, math.pi, 4.0f }.
 **    msgpack.unpack(tostring(ud)) -- Unpacks the current msgpack stream
-**    ud << 4.0 -- encode & append 4: { 1, 2, math.pi, 1, 2, math.pi, 4 }.
 */
 LUALIB_API int mp_packer_new (lua_State *L);
 
