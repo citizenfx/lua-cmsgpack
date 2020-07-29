@@ -36,6 +36,7 @@ build.luarocks/
 /*.src.rock
 
 # CMake
+Makefile
 rules.ninja
 build.ninja
 CMakeFiles/

@@ -4,6 +4,7 @@ project(lua-cmsgpack C)
 option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
 option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
+option (LUACMSGPACK_COMPAT "Compatible pack()" ON)
 option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
 
 # compile in release  mode by default
@@ -22,7 +23,7 @@ if(UNIX)
 
     # Compiler options taken from Lua: lua/blob/master/makefile
     add_compile_options(-fPIC
-        -fmax-errors=5
+        #-fmax-errors=5
         -Wall
         -Wextra
         -Wshadow
@@ -30,10 +31,10 @@ if(UNIX)
         -Wundef
         -Wwrite-strings
         -Wredundant-decls
-        -Wdisabled-optimization
+        #-Wdisabled-optimization
         -Wdouble-promotion
-        -Wlogical-op
-        -Wno-aggressive-loop-optimizations
+        #-Wlogical-op
+        #-Wno-aggressive-loop-optimizations
         # the next warnings might be useful sometimes, but usually they generate too much noise
         # -Werror
         -Wconversion
@@ -63,6 +64,11 @@ if(UNIX)
 
     if(LUACMSGPACK_SAFE)
         add_definitions(-DLUACMSGPACK_SAFE)
+    endif()
+
+    if(LUACMSGPACK_COMPAT)
+    else()
+        add_definitions(-DLUACMSGPACK_UNPACK_NEW)
     endif()
 
     if(GRIT54_LONG)
@@ -141,7 +147,7 @@ set_property(TARGET msgpack PROPERTY IMPORTED_LOCATION libmsgpackc)
 #-------------------------------------------------------------------------------
 
 include_directories(${LUA_INCLUDE_DIR} ${MSGPACK_C_INCLUDE_DIR})
-set(SOURCES lua_cmsgpack.h lua_cmsgpacklib.h lua_cmsgpack.c )
+set(SOURCES src/lua_pack_template.h src/lua_cmsgpack.h src/lua_cmsgpacklib.h src/lua_cmsgpack.c )
 add_library(cmsgpack MODULE ${SOURCES} )
 
 if (LINK_FLAGS)
