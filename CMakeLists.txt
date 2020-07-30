@@ -67,8 +67,7 @@ if(UNIX)
     endif()
 
     if(LUACMSGPACK_COMPAT)
-    else()
-        add_definitions(-DLUACMSGPACK_UNPACK_NEW)
+        add_definitions(-DLUACMSGPACK_COMPAT)
     endif()
 
     if(GRIT54_LONG)
