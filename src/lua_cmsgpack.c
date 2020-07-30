@@ -311,7 +311,11 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
     case MSGPACK_OBJECT_EXT: {
       msgpack_object_ext ext = obj->via.ext;
       mp_getregt(L, LUACMSGPACK_REG_EXT);  /* Fetch the decoding function */
+#if LUA_VERSION_NUM >= 503
       lua_rawgeti(L, -1, (lua_Integer)ext.type);
+#else
+      lua_rawgeti(L, -1, (int)ext.type);
+#endif
       if (lua_type(L, -1) == LUA_TTABLE) {
         lua_getfield(L, -1, LUACMSGPACK_META_DECODE);  /* [table, table, decoder] */
         if (lua_isfunction(L, -1)) {
@@ -442,7 +446,11 @@ static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx, int8_
   /* metatable lookup failed, use extension registry table */
   mp_getregt(L, LUACMSGPACK_REG_EXT);  /* [table] */
   for (i = 0; i < EXT_INDIRECT_MAX; ++i) {
+#if LUA_VERSION_NUM >= 503
     lua_rawgeti(L, -1, (lua_Integer)ext_id);
+#else
+    lua_rawgeti(L, -1, (int)ext_id);
+#endif
 
     /* Parse the encoder table */
     if (lua_type(L, -1) == LUA_TTABLE) {  /* [table, table] */
@@ -1086,13 +1094,23 @@ LUALIB_API int mp_set_extension (lua_State *L) {
 
   /* Ensure extension id isn't already used... */
   mp_getregt(L, LUACMSGPACK_REG_EXT);
+#if LUA_VERSION_NUM >= 503
   lua_rawgeti(L, -1, type);  /* [ext, value] */
+#else
+  lua_rawgeti(L, -1, (int)type);
+#endif
+
+  /* Do: registry.ext[type] = extension_table */
   if (lua_isnil(L, -1)) {
     lua_pushvalue(L, 1);
+#if LUA_VERSION_NUM >= 503
     lua_rawseti(L, -3, type);  /* Pop: value */
+#else
+    lua_rawseti(L, -3, (int)type);
+#endif
     lua_pop(L, 2);  /* Pop: nil & LUACMSGPACK_REG_EXT */
 
-    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 1); /* Return the extension table */
     return 1;
   }
   else {
@@ -1130,7 +1148,12 @@ LUALIB_API int mp_get_type_extension (lua_State *L) {
   if (mp_isinteger(L, -1)) {  /* Associated to an extension type, fetch it */
     lua_Integer ext = lua_tointeger(L, -1); lua_pop(L, 1);
     mp_getregt(L, LUACMSGPACK_REG_EXT);  /* [ext] */
+#if LUA_VERSION_NUM >= 503
     lua_rawgeti(L, -1, ext);
+#else
+    lua_pushinteger(L, ext);
+    lua_rawget(L, -2);
+#endif
   }
   lua_insert(L, top + 1);
   lua_pop(L, lua_gettop(L) - top - 1);
@@ -1149,7 +1172,11 @@ LUALIB_API int mp_set_type_extension (lua_State *L) {
     if (!LUACMSGPACK_EXT_VALID(ext) || ext == LUACMSGPACK_LUATYPE_EXT(ltype))
       return luaL_error(L, "msgpack extension type: invalid encoder!");
 
+#if LUA_VERSION_NUM >= 503
     lua_rawgeti(L, -1, ext);  /* [ext, encoder] */
+#else
+    lua_rawgeti(L, -1, (int)ext);  /* [ext, encoder] */
+#endif
     if (lua_isnil(L, -1))
       return luaL_error(L, "attempting to associate to nil msgpack extension");
     lua_pop(L, 1);  /* [ext] */
