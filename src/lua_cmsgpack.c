@@ -398,8 +398,13 @@ static lua_Integer mp_ext_type (lua_State *L, int idx) {
 */
 static inline int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
   int metafield; /* Attempt to use packer within the objects metatable */
-  if ((metafield = luaL_getmetafield(L, idx, LUACMSGPACK_META_ENCODE)) == LUA_TNIL)
+#if LUA_VERSION_NUM >= 503
+  if ((metafield = luaL_getmetafield(L, idx, LUACMSGPACK_META_ENCODE)) == LUA_TNIL) {
+#else
+  if ((metafield = luaL_getmetafield(L, idx, LUACMSGPACK_META_ENCODE)) == 0) {
+#endif
     return 0;
+  }
   else if (metafield != LUA_TFUNCTION) {
     lua_pop(L, 1);
     return 0;
