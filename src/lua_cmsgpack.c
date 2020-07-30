@@ -132,23 +132,39 @@ static inline void mp_replace_null (lua_State *L);
 static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
                                                          size_t *array_length) {
   lua_Integer n;
-  size_t count = 0, max = 0;
+  size_t count = 0, max = 0, arraylen = 0;
+#if !defined(LUACMSGPACK_COMPAT)
+  size_t strlen = 0;
+  const char* key = NULL;
+#endif
+
   int stacktop = lua_gettop(L);
   int i_idx = mp_rel_index(idx, 1);
 
   mp_checkstack(L, 2);
   lua_pushnil(L);
   while (lua_next(L, i_idx)) {  /* [key, value] */
-    lua_pop(L, 1);  /* [key] */
-    if (mp_isinteger(L, -1)  /* && within range of size_t */
-              && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)) {
+    if (mp_isinteger(L, -2)  /* && within range of size_t */
+              && ((n = lua_tointeger(L, -2)) >= 1 && ((size_t)n) <= MAX_SIZE)) {
       count++;  /* Is a valid array index ... */
       max = ((size_t)n) > max ? ((size_t)n) : max;
     }
+#if !defined(LUACMSGPACK_COMPAT)
+    /* support the common table.unpack / { n = select("#", ...), ... } idiom */
+    else if (lua_type(L, -2) == LUA_TSTRING
+              && mp_isinteger(L, -1)
+              && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)
+              && (key = lua_tolstring(L, -2, &strlen), strlen == 1)
+              && key[0] == 'n') {
+      arraylen = (size_t)n;
+      max = arraylen > max ? arraylen : max;
+    }
+#endif
     else {
       lua_settop(L, stacktop);
       return 0;
     }
+    lua_pop(L, 1);  /* [key] */
   }
   *array_length = max;
 
@@ -157,7 +173,7 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
     return max > 0 || (flags & MP_EMPTY_AS_ARRAY);
   /* don't create an array with too many holes (inserted nils) */
   else if (flags & MP_ARRAY_WITH_HOLES)
-    return ((max < MP_TABLE_CUTOFF) || (count >= (max >> 1)));
+    return ((max < MP_TABLE_CUTOFF) || max <= arraylen || (count >= (max >> 1)));
   return 0;
 }
 
@@ -1348,11 +1364,11 @@ static int mp_issafe (lua_State *L) {
 
 static const luaL_Reg msgpack_lib[] = {
   { "pack", mp_pack },
-#if defined(LUACMSGPACK_UNPACK_NEW)
-  { "unpack", mp_unpack },
-#else
+#if defined(LUACMSGPACK_COMPAT)
   { "unpack", mp_unpack_compat },
   { "unpack2", mp_unpack },
+#else
+  { "unpack", mp_unpack },
 #endif
   { "next", mp_unpack_next },
   /* Userdata/Packers API */
