@@ -564,13 +564,11 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
 
   if ((ud->flags & MP_OPEN)) {
     if (ud->flags & MP_PACKING) {
-      ud->u.packed.buffer.L = L;  /* Use active lua_State for alloc/dealloc. */
-      lua_mpbuffer_free(&ud->u.packed.buffer);
+      lua_mpbuffer_free(L, &ud->u.packed.buffer);
     }
     else if (ud->flags & MP_EXTERNAL) {
       if (ud->u.external.buffer) {
-        ud->u.external.buffer->L = L;
-        lua_mpbuffer_free(ud->u.external.buffer);
+        lua_mpbuffer_free(L, ud->u.external.buffer);
       }
 
       mp_checkstack(L, 3);  /* function can be called from pack/unpack */
@@ -605,7 +603,6 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
     }
     ud->flags = 0;
 
-    mp_checkstack(L, 1);  /* function can be called from pack/unpack */
     lua_pushnil(L);
     lua_setmetatable(L, idx);  /* Remove metatable, memory already managed */
     return 1;
@@ -1091,7 +1088,6 @@ LUALIB_API int mp_get_extension (lua_State *L) {
 LUALIB_API int mp_set_extension (lua_State *L) {
   lua_Integer type = 0;
   luaL_checktype(L, 1, LUA_TTABLE);
-  luaL_checkstack(L, 4, "set_extension");
 
   /* Quickly sanitize extension table */
   lua_getfield(L, 1, LUACMSGPACK_META_MTYPE);

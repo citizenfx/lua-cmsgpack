@@ -65,6 +65,11 @@ typedef struct lua_mpbuffer {
   char *b;  /* buffer address */
   size_t size;  /* buffer size */
   size_t n;  /* number of characters in buffer */
+  /*
+  ** msgpack-c's buffering interface requires a reference to the active lua
+  ** State, or at the very least the lua_State's Alloc function. The buffer
+  ** caches the state, but does not guarantee to always use this state.
+  */
   lua_State *L;
 } lua_mpbuffer;
 
@@ -263,17 +268,17 @@ static inline void *lua_mpbuffer_realloc (lua_State *L, void *target, size_t osi
 }
 
 /* Returns a pointer to a free area with at least 'sz' bytes in buffer 'B'. */
-static inline char *lua_mpbuffer_prepare (lua_mpbuffer *B, size_t sz) {
+static inline char *lua_mpbuffer_prepare (lua_State *L, lua_mpbuffer *B, size_t sz) {
   if ((B->size - B->n) < sz) {  /* reallocate buffer to accommodate 'len' bytes */
     size_t newsize = B->size * 2;  /* double buffer size */
     if (MAX_SIZET - sz < B->n) {  /* overflow? */
-      luaL_error(B->L, "buffer too large");
+      luaL_error(L, "buffer too large");
       return NULL;
     }
     if (newsize < B->n + sz)  /* double is not big enough? */
       newsize = B->n + sz;
 
-    B->b = (char *)lua_mpbuffer_realloc(B->L, B->b, B->size, newsize);
+    B->b = (char *)lua_mpbuffer_realloc(L, B->b, B->size, newsize);
     B->size = newsize;
   }
   return B->b + B->n;
@@ -283,25 +288,29 @@ static inline char *lua_mpbuffer_initsize (lua_State *L, lua_mpbuffer *B, size_t
   B->L = L;
   B->b = NULL;
   B->n = B->size = 0;
-  return lua_mpbuffer_prepare(B, sz);
+  return lua_mpbuffer_prepare(L, B, sz);
 }
 
 static inline void lua_mpbuffer_init (lua_State *L, lua_mpbuffer *B) {
   lua_mpbuffer_initsize(L, B, LUA_MPBUFFER_INITSIZE);
 }
 
-static inline void lua_mpbuffer_free (lua_mpbuffer *B) {
+static inline void lua_mpbuffer_free (lua_State *L, lua_mpbuffer *B) {
   if (B->b != NULL) {
-    lua_mpbuffer_realloc(B->L, B->b, B->size, 0);  /* realloc to 0 = free */
+    lua_mpbuffer_realloc(L, B->b, B->size, 0);  /* realloc to 0 = free */
     B->b = NULL;
     B->n = B->size = 0;
   }
-  B->L = NULL;
+  B->L = NULL; /* Invalidate the cache */
 }
 
+/*
+** Interface function required by msgpack-c, forced into using a cached
+** lua_State pointer.
+*/
 static inline int lua_mpbuffer_append (void *data, const char *s, size_t len) {
   lua_mpbuffer *B = (lua_mpbuffer *)data;
-  memcpy(lua_mpbuffer_prepare(B, len), s, len);  /* copy content */
+  memcpy(lua_mpbuffer_prepare(B->L, B, len), s, len);  /* copy content */
   B->n += len;
   return 0;  /* LUA_OK */
 }
@@ -309,7 +318,7 @@ static inline int lua_mpbuffer_append (void *data, const char *s, size_t len) {
 static int lua_mpbuffer_gc (lua_State *L) {
   lua_mpbuffer *B = ((lua_mpbuffer *)luaL_checkudata(L, 1, LUA_MPBUFFER_USERDATA));
   if (B != NULL)
-    lua_mpbuffer_free(B);
+    lua_mpbuffer_free(L, B);
   return 0;
 }
 
