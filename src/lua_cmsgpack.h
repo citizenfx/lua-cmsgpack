@@ -51,6 +51,13 @@ static inline int mp_isinteger(lua_State *L, int idx) {
 }
 #endif
 
+/* Macro for geti/seti. Parameters changed from int to lua_Integer in 53 */
+#if LUA_VERSION_NUM >= 503
+  #define mp_ti(v) v
+#else
+  #define mp_ti(v) (int)(v)
+#endif
+
 /*
 ** A luaL_Buffer with its own memory-management.
 */
@@ -74,6 +81,7 @@ typedef struct lua_mpbuffer {
 #define LUACMSGPACK_REG "lua_cmsgpack"
 #define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
 #define LUACMSGPACK_REG_EXT "lua_cmsgpack_meta"
+#define LUACMSGPACK_REG_NULL "lua_rapidjson_nullref"
 
 #define LUACMSGPACK_META_MTYPE "__ext"
 #define LUACMSGPACK_META_ENCODE "__pack"
@@ -212,6 +220,15 @@ LUA_API void lua_msgpack_encode (lua_State *L, lua_msgpack *ud, int idx, int lev
 LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
                                           size_t len, size_t *offset, int limit,
                            const char **error, msgpack_unpack_return *err_code);
+
+/* If the element on top of the stack is nil, replace it with its reference */
+LUA_API void mp_replace_null (lua_State *L);
+
+/*
+** Return true if the object at the specific stack index is, or a reference to,
+** the msgpack null sentinel value.
+*/
+LUA_API int mp_is_null (lua_State *L, int idx);
 
 /* }================================================================== */
 
@@ -362,9 +379,8 @@ static void mp_encode_lua_table_as_map(lua_State *L, lua_msgpack *ud,
                                                             int idx, int level);
 
 #define lua_msgpack_op(NAME, PACKER)                                           \
-  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
+  static inline void (NAME) (lua_State *L, lua_msgpack *ud) {                  \
     ((void)(L));                                                               \
-    ((void)(i));                                                               \
     PACKER(&(ud->u.packed.packer));                                            \
   }
 
@@ -607,6 +623,10 @@ static inline void lua_pack_any (lua_State *L, lua_msgpack *ud, int idx, int lev
     case LUA_TUSERDATA:
     case LUA_TTHREAD:
     case LUA_TFUNCTION:
+      if (t == LUA_TFUNCTION && mp_is_null(L, idx)) {
+        msgpack_pack_nil(&(ud->u.packed.packer));
+        break;
+      }
       lua_pack_type_extended(L, ud, idx);
       break;
     case LUA_TLIGHTUSERDATA: {

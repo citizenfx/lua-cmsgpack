@@ -95,7 +95,7 @@ LUALIB_API int mp_unpack_next (lua_State *L);
 **    ud = msgpack.new()
 **    ud(1, 2, math.pi) -- Append; current state: { 1, 2, math.pi }.
 **    ud .. tostring(ud) -- Duplicate; current state: { 1, 2, math.pi, 1, 2, math.pi }.
-**    ud::float(4.0) -- Append; current state: { 1, 2, math.pi, 1, 2, math.pi, 4.0f }.
+**    ud:float(4.0) -- Append; current state: { 1, 2, math.pi, 1, 2, math.pi, 4.0f }.
 **    msgpack.unpack(tostring(ud)) -- Unpacks the current msgpack stream
 */
 LUALIB_API int mp_packer_new (lua_State *L);
