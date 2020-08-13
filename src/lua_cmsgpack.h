@@ -183,8 +183,7 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud);
 **    table definition and 'mp_get_extension' can be used to retrieve that
 **    metatable
 */
-LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type,
-                                  lua_CFunction encoder, lua_CFunction decoder);
+LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type, lua_CFunction encoder, lua_CFunction decoder);
 
 /*
 ** MessagePack the value at the specified stack index.
@@ -257,8 +256,7 @@ LUA_API int mp_is_null (lua_State *L, int idx);
   #endif
 #endif
 
-static inline void *lua_mpbuffer_realloc (lua_State *L, void *target,
-                                                   size_t osize, size_t nsize) {
+static inline void *lua_mpbuffer_realloc (lua_State *L, void *target, size_t osize, size_t nsize) {
   void *ud;
   lua_Alloc local_realloc = lua_getallocf(L, &ud);
   return local_realloc(ud, target, osize, nsize);
@@ -268,7 +266,7 @@ static inline void *lua_mpbuffer_realloc (lua_State *L, void *target,
 static inline char *lua_mpbuffer_prepare (lua_mpbuffer *B, size_t sz) {
   if ((B->size - B->n) < sz) {  /* reallocate buffer to accommodate 'len' bytes */
     size_t newsize = B->size * 2;  /* double buffer size */
-    if (MAX_SIZET - sz < B->n) { /* overflow? */
+    if (MAX_SIZET - sz < B->n) {  /* overflow? */
       luaL_error(B->L, "buffer too large");
       return NULL;
     }
@@ -345,8 +343,7 @@ static lua_Integer mp_ext_type (lua_State *L, int idx);
 ** @TODO: Missing level. With a poorly defined extension encoder, cycles can
 **  exist and the encoder level isn't propagated.
 */
-static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx,
-                                                                 int8_t ext_id);
+static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id);
 
 /*
 ** Return true if the table at the specified stack index can be encoded as an
@@ -356,8 +353,7 @@ static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx,
 ** However, with the flag "MP_ARRAY_WITH_HOLES" set, condition (4) is alleviated
 ** and msgpack can encode "null" in the nil array indices.
 */
-static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
-                                                          size_t *array_length);
+static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags, size_t *array_length);
 
 /*
 ** Encode the table at the specified stack index as an array.
@@ -369,37 +365,35 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
 **  array_length - precomputed array length; at worst use lua_objlen/lua_rawlen
 **    to compute this value.
 */
-static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
-                                       int idx, int level, size_t array_length);
+static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud, int idx, int level, size_t array_length);
 
 /*
 ** Encode the table at the specified stack index as a <key, value> array.
 */
-static void mp_encode_lua_table_as_map(lua_State *L, lua_msgpack *ud,
-                                                            int idx, int level);
+static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int level);
 
-#define lua_msgpack_op(NAME, PACKER)                                           \
-  static inline void (NAME) (lua_State *L, lua_msgpack *ud) {                  \
-    ((void)(L));                                                               \
-    PACKER(&(ud->u.packed.packer));                                            \
+#define lua_msgpack_op(NAME, PACKER)                          \
+  static inline void(NAME)(lua_State * L, lua_msgpack * ud) { \
+    ((void)(L));                                              \
+    PACKER(&(ud->u.packed.packer));                           \
   }
 
-#define lua_msgpack_number_func(NAME, PACKER, TYPE)                            \
-  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
-    PACKER(&(ud->u.packed.packer), (TYPE)lua_tonumber(L, i));                  \
+#define lua_msgpack_number_func(NAME, PACKER, TYPE)                  \
+  static inline void(NAME)(lua_State * L, lua_msgpack * ud, int i) { \
+    PACKER(&(ud->u.packed.packer), (TYPE)lua_tonumber(L, i));        \
   }
 
-#define lua_msgpack_int_func(NAME, PACKER, TYPE)                               \
-  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
-    PACKER(&(ud->u.packed.packer), (TYPE)lua_tointeger(L, i));                 \
+#define lua_msgpack_int_func(NAME, PACKER, TYPE)                     \
+  static inline void(NAME)(lua_State * L, lua_msgpack * ud, int i) { \
+    PACKER(&(ud->u.packed.packer), (TYPE)lua_tointeger(L, i));       \
   }
 
-#define lua_msgpack_str_func(NAME, LEN, BODY)                                  \
-  static inline void (NAME) (lua_State *L, lua_msgpack *ud, int i) {           \
-    size_t len = 0;                                                            \
-    const char *s = lua_tolstring(L, i, &len);                                 \
-    LEN(&(ud->u.packed.packer), len);                                          \
-    BODY(&(ud->u.packed.packer), s, len);                                      \
+#define lua_msgpack_str_func(NAME, LEN, BODY)                        \
+  static inline void(NAME)(lua_State * L, lua_msgpack * ud, int i) { \
+    size_t len = 0;                                                  \
+    const char *s = lua_tolstring(L, i, &len);                       \
+    LEN(&(ud->u.packed.packer), len);                                \
+    BODY(&(ud->u.packed.packer), s, len);                            \
   }
 
 lua_msgpack_int_func(lua_pack_char, msgpack_pack_char, char);
@@ -452,9 +446,9 @@ static inline void lua_pack_array (lua_State *L, lua_msgpack *ud, int idx, int l
   ((void)level);
   mp_encode_lua_table_as_array(L, ud, idx, level,
 #if LUA_VERSION_NUM < 502
-    (size_t)lua_objlen(L, -1)
+  (size_t)lua_objlen(L, -1)
 #else
-    (size_t)lua_rawlen(L, -1)
+  (size_t)lua_rawlen(L, -1)
 #endif
   );
 }
