@@ -5,6 +5,7 @@ option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
 option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
 option (LUACMSGPACK_COMPAT "Compatible pack()" OFF)
+option (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
 
 # compile in release  mode by default
 if(NOT CMAKE_BUILD_TYPE)
@@ -68,6 +69,10 @@ if(UNIX)
     if(LUACMSGPACK_COMPAT)
         add_definitions(-DLUACMSGPACK_COMPAT)
     endif()
+
+    if (LUACMSGPACK_STATIC_NIL)
+        add_definitions(-DLUACMSGPACK_STATIC_NIL)
+    endif()        
 
     if(LUACMSGPACK_BIT32)
         add_definitions(-DLUACMSGPACK_BIT32)

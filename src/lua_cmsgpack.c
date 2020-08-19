@@ -682,10 +682,19 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
   return (err_msg == NULL) ? object_count : 0;
 }
 
+/* Reference to null */
+#if defined(LUACMSGPACK_STATIC_NIL)
+static int mp_null_ref = LUA_NOREF;
+#endif
+
 LUA_API void mp_replace_null (lua_State *L) {
   if (lua_isnil(L, -1)) {
     lua_pop(L, 1);
+#if defined(LUACMSGPACK_STATIC_NIL)
+    lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
     lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
   }
 }
 
@@ -694,7 +703,11 @@ LUA_API int mp_is_null (lua_State *L, int idx) {
 
   mp_checkstack(L, 3);
   lua_pushvalue(L, idx); /* [value] */
+#if defined(LUACMSGPACK_STATIC_NIL)
+  lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
   lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
   is = lua_rawequal(L, -1, -2) != 0;
   lua_pop(L, 2);
   return is;
@@ -1302,7 +1315,11 @@ LUALIB_API int mp_getoption (lua_State *L) {
 
 /* Returns messagepack.null */
 static int mp_null (lua_State *L) {
+#if defined(LUACMSGPACK_STATIC_NIL)
+  lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
   lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
   return 1;
 }
 
@@ -1484,7 +1501,11 @@ LUAMOD_API int luaopen_cmsgpack (lua_State *L) {
 
   /* Create messagepack.null reference */
   lua_getfield(L, -1, "sentinel");
+#if defined(LUACMSGPACK_STATIC_NIL)
+  mp_null_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+#else
   mp_setregi(L, LUACMSGPACK_REG_NULL, luaL_ref(L, LUA_REGISTRYINDEX));
+#endif
 
   /* Register name globally for 5.1 */
 #if LUA_VERSION_NUM == 501
