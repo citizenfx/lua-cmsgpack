@@ -107,7 +107,7 @@ endif()
 #-------------------------------------------------------------------------------
 # msgpack-c external dependency
 #-------------------------------------------------------------------------------
-set(MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c)
+set(MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c/cfx)
 set(MSGPACK_C_DIR ${MSGPACK_C}/repo)
 set(MSGPACK_C_LIB_DIR ${MSGPACK_C_DIR})
 set(MSGPACK_C_INCLUDE_DIR ${MSGPACK_C_DIR}/include)
@@ -122,11 +122,16 @@ include(ExternalProject)
 ExternalProject_Add(msgpack
     PREFIX ${MSGPACK_C}
     GIT_REPOSITORY https://github.com/msgpack/msgpack-c.git
-    GIT_TAG "c_master"
-    CMAKE_ARGS += -DMSGPACK_BUILD_EXAMPLES=OFF
-                  -DMSGPACK_BUILD_TESTS=ON
-                  -DBUILD_SHARED_LIBS=OFF
+    GIT_TAG "4d36456799183a59654a4fae243af4c19e49d871"
+    CMAKE_ARGS -DMSGPACK_BUILD_EXAMPLES=OFF
+                  -DMSGPACK_BUILD_TESTS=OFF
                   -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+                  -DBUILD_TESTING=OFF
+                  -DBUILD_SHARED_LIBS=OFF
+                  -DMSGPACK_ENABLE_CXX=OFF
+                  -DMSGPACK_CXX17=ON
+                  -DMSGPACK_BOOST=ON
+                  -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
                   ${MSGPACK_C_32BIT}
     BUILD_COMMAND make
     INSTALL_COMMAND ""
