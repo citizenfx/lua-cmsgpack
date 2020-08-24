@@ -1224,8 +1224,8 @@ LUALIB_API int mp_setoption (lua_State *L) {
     case MP_NUMBER_AS_FLOAT:
     case MP_NUMBER_AS_DOUBLE:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_NUMBER : MP_MASK_NUMBER;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_NUMBER : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_NUMBER) == 0)
         flags |= (MP_DEFAULT & MP_MASK_NUMBER);
 
@@ -1235,19 +1235,18 @@ LUALIB_API int mp_setoption (lua_State *L) {
     case MP_ARRAY_WITH_HOLES:
     case MP_ARRAY_WITHOUT_HOLES:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_ARRAY : MP_MASK_ARRAY;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_ARRAY : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_ARRAY) == 0)
         flags |= (MP_DEFAULT & MP_MASK_ARRAY);
-      if ((flags & MP_ARRAY_AS_MAP) != 0)
-        flags &= ~MP_EMPTY_AS_ARRAY;
+
       mp_setregi(L, LUACMSGPACK_REG_OPTIONS, flags);
       break;
     case MP_STRING_BINARY:
     case MP_STRING_COMPAT:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_STRING : MP_MASK_STRING;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_STRING : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_STRING) == 0)
         flags |= (MP_DEFAULT & MP_MASK_STRING);
 
