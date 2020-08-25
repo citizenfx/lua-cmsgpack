@@ -22,7 +22,8 @@ if(UNIX)
     endif(APPLE)
 
     # Compiler options taken from Lua: lua/blob/master/makefile
-    add_compile_options(-fPIC
+    add_compile_options(
+        -fPIC
         #-fmax-errors=5
         -Wall
         -Wextra
@@ -42,16 +43,13 @@ if(UNIX)
         -Wstrict-overflow=2
         -Wformat=2
         -Wcast-qual
-    )
-
-    # The next warnings are neither valid nor needed for C++
-    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "\
-        -Wdeclaration-after-statement \
-        -Wmissing-prototypes \
-        -Wnested-externs \
-        -Wstrict-prototypes \
-        -Wc++-compat \
-        -Wold-style-definition"
+        # c_master is a C-only branch.
+        -Wdeclaration-after-statement
+        -Wmissing-prototypes
+        -Wnested-externs
+        -Wstrict-prototypes
+        -Wc++-compat
+        -Wold-style-definition
     )
 
     if(LUACMSGPACK_DEBUG)
@@ -72,7 +70,7 @@ if(UNIX)
 
     if (LUACMSGPACK_STATIC_NIL)
         add_definitions(-DLUACMSGPACK_STATIC_NIL)
-    endif()        
+    endif()
 
     if(LUACMSGPACK_BIT32)
         add_definitions(-DLUACMSGPACK_BIT32)
@@ -107,6 +105,7 @@ endif()
 #-------------------------------------------------------------------------------
 # msgpack-c external dependency
 #-------------------------------------------------------------------------------
+set (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
 set(MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c)
 set(MSGPACK_C_DIR ${MSGPACK_C}/repo)
 set(MSGPACK_C_LIB_DIR ${MSGPACK_C_DIR})
@@ -123,8 +122,10 @@ ExternalProject_Add(msgpack
     PREFIX ${MSGPACK_C}
     GIT_REPOSITORY https://github.com/msgpack/msgpack-c.git
     GIT_TAG "c_master"
-    CMAKE_ARGS += -DMSGPACK_BUILD_EXAMPLES=OFF
-                  -DMSGPACK_BUILD_TESTS=ON
+    CMAKE_ARGS += -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                  -DMSGPACK_BUILD_EXAMPLES=OFF
+                  -DMSGPACK_BUILD_TESTS=OFF
                   -DBUILD_SHARED_LIBS=OFF
                   -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
                   ${MSGPACK_C_32BIT}
