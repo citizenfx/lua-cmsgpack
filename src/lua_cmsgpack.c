@@ -60,7 +60,7 @@ static int luaL_getsubtable (lua_State *L, int idx, const char *fname) {
 #endif
 
 /* Fetch a lua_Int from the registry table */
-static lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
+static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
   lua_Integer result;
 
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
@@ -71,7 +71,7 @@ static lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
 }
 
 /* Push a integer into the registry table at the specified key */
-static void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
+static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   lua_pushinteger(L, value);
   lua_setfield(L, -2, key);  /* pops value */
@@ -79,7 +79,7 @@ static void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
 }
 
 /* Get a subtable within the registry table */
-static inline void mp_getregt (lua_State *L, const char *name) {
+static LUACMSGPACK_INLINE void mp_getregt (lua_State *L, const char *name) {
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   if (!luaL_getsubtable(L, -1, name)) {
     /* initialize it */
@@ -260,12 +260,18 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer
       mp_checkstack(L, 2);
       for (i = 0; i < array.size; ++i) {
 #if LUA_VERSION_NUM >= 503
-        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags))
+        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags)) {
+          if (flags & MP_USE_SENTINEL)
+            mp_replace_null(L);
           lua_rawseti(L, -2, (lua_Integer)(i + 1));
+        }
 #else
         lua_pushinteger(L, (lua_Integer)(i + 1));
-        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags))
+        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags)) {
+          if (flags & MP_USE_SENTINEL)
+            mp_replace_null(L);
           lua_rawset(L, -3);
+        }
         else
           lua_pop(L, 1);  /* decoded key */
 #endif
@@ -363,7 +369,7 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer
 */
 #define EXT_INDIRECT_MAX 5
 
-static lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
+static LUACMSGPACK_INLINE lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
   if (!LUACMSGPACK_EXT_VALID(type))
     return luaL_argerror(L, arg, "Invalid extension-type identifier");
   return type;
@@ -373,7 +379,7 @@ static lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
 ** Return the extension type, if one exists, associated to the object value at
 ** the specified stack index.
 */
-static lua_Integer mp_ext_type (lua_State *L, int idx) {
+static LUACMSGPACK_INLINE lua_Integer mp_ext_type (lua_State *L, int idx) {
   lua_Integer type = EXT_INVALID;
 #if LUA_VERSION_NUM >= 503
   if (luaL_getmetafield(L, idx, LUACMSGPACK_META_MTYPE) != LUA_TNIL) {
@@ -394,7 +400,7 @@ static lua_Integer mp_ext_type (lua_State *L, int idx) {
 ** If the object at the specified index has a metatable, attempt to use the
 ** encoders specified.
 */
-static inline int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
+static int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
   int metafield; /* Attempt to use packer within the objects metatable */
 #if LUA_VERSION_NUM >= 503
   if ((metafield = luaL_getmetafield(L, idx, LUACMSGPACK_META_ENCODE)) == LUA_TNIL) {
@@ -702,14 +708,13 @@ LUA_API int mp_is_null (lua_State *L, int idx) {
   int is = 0;
 
   mp_checkstack(L, 3);
-  lua_pushvalue(L, idx); /* [value] */
 #if defined(LUACMSGPACK_STATIC_NIL)
   lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
 #else
   lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
 #endif
-  is = lua_rawequal(L, -1, -2) != 0;
-  lua_pop(L, 2);
+  is = lua_rawequal(L, mp_rel_index(idx, 1), -1) != 0;
+  lua_pop(L, 1);
   return is;
 }
 
@@ -966,7 +971,7 @@ static const int optsnum[] = {
 ** returns the size_t. If the argument is absent or is nil, returns def.
 ** Otherwise, throw an error.
 */
-static inline size_t luaL_optsizet (lua_State *L, int arg, size_t def) {
+static size_t luaL_optsizet (lua_State *L, int arg, size_t def) {
   lua_Integer i;
   if (lua_isnoneornil(L, arg))
     return def;
