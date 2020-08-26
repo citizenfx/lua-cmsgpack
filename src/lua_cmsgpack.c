@@ -1114,8 +1114,16 @@ LUALIB_API int mp_set_extension (lua_State *L) {
     return luaL_argerror(L, 2, "missing pack/unpack metamethods.");
   lua_pop(L, 3);
 
-  /* Ensure extension id isn't already used... */
+  /* Do: registry_ext[type] = extension_table */
   mp_getregt(L, LUACMSGPACK_REG_EXT);
+  lua_pushvalue(L, 1);
+  lua_rawseti(L, -2, mp_ti(type));  /* Pop: value */
+  lua_pop(L, 1);  /* Pop: LUACMSGPACK_REG_EXT */
+
+  lua_pushvalue(L, 1);  /* Return the extension table */
+  return 1;
+#if 0
+  /* Ensure extension id isn't already used... */
   lua_rawgeti(L, -1, mp_ti(type));  /* [ext, value] */
 
   /* Do: registry.ext[type] = extension_table */
@@ -1131,6 +1139,7 @@ LUALIB_API int mp_set_extension (lua_State *L) {
     lua_pop(L, 2);
     return luaL_error(L, "attempting to replace registered msgpack extension");
   }
+#endif
 }
 
 LUALIB_API int mp_clear_extension (lua_State *L) {
