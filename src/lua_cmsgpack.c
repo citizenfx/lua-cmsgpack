@@ -60,7 +60,7 @@ static int luaL_getsubtable (lua_State *L, int idx, const char *fname) {
 #endif
 
 /* Fetch a lua_Int from the registry table */
-static lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
+static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
   lua_Integer result;
 
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
@@ -71,7 +71,7 @@ static lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
 }
 
 /* Push a integer into the registry table at the specified key */
-static void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
+static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   lua_pushinteger(L, value);
   lua_setfield(L, -2, key);  /* pops value */
@@ -79,7 +79,7 @@ static void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
 }
 
 /* Get a subtable within the registry table */
-static inline void mp_getregt (lua_State *L, const char *name) {
+static LUACMSGPACK_INLINE void mp_getregt (lua_State *L, const char *name) {
   luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   if (!luaL_getsubtable(L, -1, name)) {
     /* initialize it */
@@ -97,7 +97,7 @@ static inline void mp_getregt (lua_State *L, const char *name) {
 static int typetoindex (lua_State *L, const char *name) {
   int i, found = -1;
 #if LUA_VERSION_NUM == 501  /* Ensure the type name exists ... */
-  for (i = 0; i < (LUA_TTHREAD+1); ++i) {
+  for (i = 0; i < (LUA_TTHREAD + 1); ++i) {
 #else
   for (i = 0; i < LUA_NUMTAGS; ++i) {
 #endif
@@ -116,11 +116,7 @@ static int typetoindex (lua_State *L, const char *name) {
 ** Decode the msgpack_object and place its contents onto the Lua stack.
 ** Returning 1 on success, 0 on failure.
 **/
-static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
-                                                             lua_Integer flags);
-
-/* If the element on top of the stack is nil, replace it with its reference */
-static inline void mp_replace_null (lua_State *L);
+static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer flags);
 
 /*
 ** {==================================================================
@@ -157,13 +153,12 @@ static int mp_parse_vector (lua_State *L, int idx, lua_Float4 *v) {
 #endif
 }
 
-static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
-                                                         size_t *array_length) {
+static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags, size_t *array_length) {
   lua_Integer n;
   size_t count = 0, max = 0, arraylen = 0;
 #if !defined(LUACMSGPACK_COMPAT)
   size_t strlen = 0;
-  const char* key = NULL;
+  const char *key = NULL;
 #endif
 
   int stacktop = lua_gettop(L);
@@ -173,17 +168,17 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
   lua_pushnil(L);
   while (lua_next(L, i_idx)) {  /* [key, value] */
     if (mp_isinteger(L, -2)  /* && within range of size_t */
-              && ((n = lua_tointeger(L, -2)) >= 1 && ((size_t)n) <= MAX_SIZE)) {
+        && ((n = lua_tointeger(L, -2)) >= 1 && ((size_t)n) <= MAX_SIZE)) {
       count++;  /* Is a valid array index ... */
       max = ((size_t)n) > max ? ((size_t)n) : max;
     }
 #if !defined(LUACMSGPACK_COMPAT)
     /* support the common table.unpack / { n = select("#", ...), ... } idiom */
     else if (lua_type(L, -2) == LUA_TSTRING
-              && mp_isinteger(L, -1)
-              && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)
-              && (key = lua_tolstring(L, -2, &strlen), strlen == 1)
-              && key[0] == 'n') {
+             && mp_isinteger(L, -1)
+             && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)
+             && (key = lua_tolstring(L, -2, &strlen), strlen == 1)
+             && key[0] == 'n') {
       arraylen = (size_t)n;
       max = arraylen > max ? arraylen : max;
     }
@@ -205,8 +200,7 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags,
   return 0;
 }
 
-static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
-                                      int idx, int level, size_t array_length) {
+static void mp_encode_lua_table_as_array( lua_State *L, lua_msgpack *ud, int idx, int level, size_t array_length) {
   size_t j;
 #if LUA_VERSION_NUM < 503
   int i_idx = mp_rel_index(idx, 1);
@@ -226,8 +220,7 @@ static void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud,
   }
 }
 
-static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx,
-                                                                    int level) {
+static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int level) {
   size_t len = 0;
   int i_idx = mp_rel_index(idx, 1);
 
@@ -302,8 +295,7 @@ static int mp_decode_vector (lua_State *L, msgpack_object_ext *ext) {
   return 1;
 }
 
-static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
-                                                            lua_Integer flags) {
+static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer flags) {
   mp_checkstack(L, 1);
   switch (obj->type) {
     case MSGPACK_OBJECT_NIL:
@@ -327,7 +319,7 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       lua_pushinteger(L, (lua_Integer)obj->via.i64);
       break;
     case MSGPACK_OBJECT_FLOAT32:
-      lua_pushnumber(L, (lua_Number)((float) obj->via.f64));
+      lua_pushnumber(L, (lua_Number)((float)obj->via.f64));
       break;
     case MSGPACK_OBJECT_FLOAT64:
       lua_pushnumber(L, (lua_Number)((double)obj->via.f64));
@@ -346,12 +338,18 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       mp_checkstack(L, 2);
       for (i = 0; i < array.size; ++i) {
 #if LUA_VERSION_NUM >= 503
-        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags))
+        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags)) {
+          if (flags & MP_USE_SENTINEL)
+            mp_replace_null(L);
           lua_rawseti(L, -2, (lua_Integer)(i + 1));
+        }
 #else
         lua_pushinteger(L, (lua_Integer)(i + 1));
-        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags))
+        if (mp_decode_to_lua_type(L, &(array.ptr[i]), flags)) {
+          if (flags & MP_USE_SENTINEL)
+            mp_replace_null(L);
           lua_rawset(L, -3);
+        }
         else
           lua_pop(L, 1);  /* decoded key */
 #endif
@@ -367,14 +365,15 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       ** cannot preallocate the number of map records safely. Another workaround
       ** would be to allocate the same number of table & array records, thereby
       ** creating a "mixed" table where "unpack" and "rawlen" still work as
-      ** indended
+      ** intended
       */
       /* lua_createtable(L, 0, (map.size <= INT_MAX) ? (int)map.size : 0); */
 
       lua_newtable(L);
-      mp_checkstack(L, 2);
+      mp_checkstack(L, 5);
       for (i = 0; i < map.size; ++i) {
         if (mp_decode_to_lua_type(L, &(map.ptr[i].key), flags)) {
+          /* If the key of the map is null, replace it with the null-sentinel */
           if (flags & MP_USE_SENTINEL)
             mp_replace_null(L);
 
@@ -402,7 +401,7 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
       if (lua_type(L, -1) == LUA_TTABLE) {
         lua_getfield(L, -1, LUACMSGPACK_META_DECODE);  /* [table, table, decoder] */
         if (lua_isfunction(L, -1)) {
-          lua_insert(L, -3); lua_pop(L, 2); /* [decoder] */
+          lua_insert(L, -3); lua_pop(L, 2);  /* [decoder] */
           lua_pushlstring(L, ext.ptr, (size_t)ext.size);  /* [decoder, value] */
           lua_pushinteger(L, (lua_Integer)ext.type);
           lua_call(L, 2, 1);  /* [decoded value] */
@@ -439,9 +438,10 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
   #include <intrin.h>
   #define popcount __popcnt
 #else
-  int popcount(uint32_t x) {
+  static int popcount(uint32_t x) {
     uint32_t c = 0;
-    for (; x > 0; x &= x -1) c++;
+    for (; x > 0; x &= x - 1)
+      c++;
     return c;
   }
 #endif
@@ -452,7 +452,7 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj,
 */
 #define EXT_INDIRECT_MAX 5
 
-static lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
+static LUACMSGPACK_INLINE lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
   if (!LUACMSGPACK_EXT_VALID(type))
     return luaL_argerror(L, arg, "Invalid extension-type identifier");
   return type;
@@ -462,7 +462,7 @@ static lua_Integer mp_checktype (lua_State *L, lua_Integer type, int arg) {
 ** Return the extension type, if one exists, associated to the object value at
 ** the specified stack index.
 */
-static lua_Integer mp_ext_type (lua_State *L, int idx) {
+static LUACMSGPACK_INLINE lua_Integer mp_ext_type (lua_State *L, int idx) {
   lua_Integer type = EXT_INVALID;
 
   /*
@@ -499,7 +499,7 @@ static lua_Integer mp_ext_type (lua_State *L, int idx) {
 ** If the object at the specified index has a metatable, attempt to use the
 ** encoders specified.
 */
-static inline int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
+static int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_id) {
   int metafield; /* Attempt to use packer within the objects metatable */
 #if LUA_VERSION_NUM >= 503
   if ((metafield = luaL_getmetafield(L, idx, LUACMSGPACK_META_ENCODE)) == LUA_TNIL) {
@@ -526,7 +526,7 @@ static inline int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int id
       msgpack_pack_ext(pk, len, ext_id);
       msgpack_pack_ext_body(pk, s, len);
     }
-    lua_pop(L, 2); /* metafield & encoded values */
+    lua_pop(L, 2);  /* metafield & encoded values */
     return 1;
   }
   else {
@@ -545,18 +545,14 @@ static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx, int8_
   /* metatable lookup failed, use extension registry table */
   mp_getregt(L, LUACMSGPACK_REG_EXT);  /* [table] */
   for (i = 0; i < EXT_INDIRECT_MAX; ++i) {
-#if LUA_VERSION_NUM >= 503
-    lua_rawgeti(L, -1, (lua_Integer)ext_id);
-#else
-    lua_rawgeti(L, -1, (int)ext_id);
-#endif
+    lua_rawgeti(L, -1, mp_ti(ext_id));
 
     /* Parse the encoder table */
     if (lua_type(L, -1) == LUA_TTABLE) {  /* [table, table] */
       lua_getfield(L, -1, LUACMSGPACK_META_ENCODE);  /* [table, table, encoder] */
       if (lua_isfunction(L, -1)) {
 
-        lua_insert(L, -3); lua_pop(L, 2); /* [encoder] */
+        lua_insert(L, -3); lua_pop(L, 2);  /* [encoder] */
         lua_pushvalue(L, mp_rel_index(idx, 1));  /* [encoder, value to encode] */
         lua_pushinteger(L, (lua_Integer)ext_id);  /* [encoder, value, type] */
         lua_call(L, 2, 2);  /* [encoded value] */
@@ -581,7 +577,7 @@ static int mp_encode_ext_lua_type (lua_State *L, lua_msgpack *ud, int idx, int8_
       return luaL_error(L, "msgpack extension type: invalid encoder");
     }
     /* Lua type has been associated to an extension type */
-    else if (lua_type(L, -1) == LUA_TNUMBER) { /* [table, type] */
+    else if (lua_type(L, -1) == LUA_TNUMBER) {  /* [table, type] */
       lua_Integer ext = lua_tointeger(L, -1);
 
       lua_pop(L, 1);  /* [table] */
@@ -644,7 +640,7 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
 #elif LUA_VERSION_NUM == 501
     lua_setfenv(L, -2);
 #else
-    #error unsupported Lua version
+  #error unsupported Lua version
 #endif
     lua_mpbuffer_init(L, ud->u.external.buffer);
     msgpack_packer_init(&ud->u.external.packer, ud->u.external.buffer, lua_mpbuffer_append);
@@ -673,13 +669,11 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
 
   if ((ud->flags & MP_OPEN)) {
     if (ud->flags & MP_PACKING) {
-      ud->u.packed.buffer.L = L;  /* Use active lua_State for alloc/dealloc. */
-      lua_mpbuffer_free(&ud->u.packed.buffer);
+      lua_mpbuffer_free(L, &ud->u.packed.buffer);
     }
     else if (ud->flags & MP_EXTERNAL) {
       if (ud->u.external.buffer) {
-        ud->u.external.buffer->L = L;
-        lua_mpbuffer_free(ud->u.external.buffer);
+        lua_mpbuffer_free(L, ud->u.external.buffer);
       }
 
       mp_checkstack(L, 3);  /* function can be called from pack/unpack */
@@ -714,7 +708,6 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
     }
     ud->flags = 0;
 
-    mp_checkstack(L, 1);  /* function can be called from pack/unpack */
     lua_pushnil(L);
     lua_setmetatable(L, idx);  /* Remove metatable, memory already managed */
     return 1;
@@ -722,8 +715,7 @@ LUA_API int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
   return 0;
 }
 
-LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type,
-                                 lua_CFunction encoder, lua_CFunction decoder) {
+LUA_API void lua_msgpack_extension (lua_State *L, lua_Integer type, lua_CFunction encoder, lua_CFunction decoder) {
   if (LUACMSGPACK_EXT_VALID(type) && !LUACMSGPACK_EXT_RESERVED(type)) {
     mp_getregt(L, LUACMSGPACK_REG_EXT);
     lua_pushinteger(L, type);
@@ -795,6 +787,36 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
   return (err_msg == NULL) ? object_count : 0;
 }
 
+/* Reference to null */
+#if defined(LUACMSGPACK_STATIC_NIL)
+static int mp_null_ref = LUA_NOREF;
+#endif
+
+LUA_API void mp_replace_null (lua_State *L) {
+  if (lua_isnil(L, -1)) {
+    lua_pop(L, 1);
+#if defined(LUACMSGPACK_STATIC_NIL)
+    lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
+    lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
+  }
+}
+
+LUA_API int mp_is_null (lua_State *L, int idx) {
+  int is = 0;
+
+  mp_checkstack(L, 3);
+#if defined(LUACMSGPACK_STATIC_NIL)
+  lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
+  lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
+  is = lua_rawequal(L, mp_rel_index(idx, 1), -1) != 0;
+  lua_pop(L, 1);
+  return is;
+}
+
 /* }================================================================== */
 
 /*
@@ -804,32 +826,41 @@ LUA_API int lua_msgpack_decode (lua_State *L, lua_msgpack *ud, const char *s,
 */
 #define _opext(ud) ((ud->flags & (MP_OPEN | MP_EXTERNAL)) == (MP_OPEN | MP_EXTERNAL))
 
-#define lua_msgpack_template()                                                 \
-  int i, nargs;                                                                \
+#define lua_msgpack_template(INPUT)                                               \
+  int i, nargs;                                                                   \
   lua_msgpack *ud = ((lua_msgpack *)luaL_checkudata(L, 1, LUACMSGPACK_USERDATA)); \
-  if ((nargs = lua_gettop(L)) <= 1)                                            \
-    return luaL_argerror(L, 0, "MessagePack pack needs input");                \
-  else if (ud == NULL || !_opext(ud))                                          \
+  if ((nargs = lua_gettop(L)) < (INPUT))                                          \
+    return luaL_argerror(L, 0, "MessagePack pack needs input");                   \
+  else if (ud == NULL || !_opext(ud))                                             \
     return luaL_error(L, "invalid packer UD");
 
-#define lua_msgpack_function(NAME, PACKER)                                     \
-  static int (NAME) (lua_State *L) {                                           \
-    lua_msgpack_template();                                                    \
-    for (i = 2; i <= nargs; i++) {                                             \
-      PACKER(L, ud, i);                                                        \
-    }                                                                          \
-    lua_pushvalue(L, 1); /* Return "self" */                                   \
-    return 1;                                                                  \
+#define lua_msgpack_function_op(NAME, PACKER) \
+  static int(NAME)(lua_State * L) {           \
+    lua_msgpack_template(1);                  \
+    PACKER(L, ud);                            \
+    lua_pushvalue(L, 1); /* Return "self" */  \
+    ((void)(i));                              \
+    return 1;                                 \
   }
 
-#define lua_msgpack_function_level(NAME, PACKER)                               \
-  static int (NAME) (lua_State *L) {                                           \
-    lua_msgpack_template();                                                    \
-    for (i = 2; i <= nargs; i++) {                                             \
-      PACKER(L, ud, i, 1);                                                     \
-    }                                                                          \
-    lua_pushvalue(L, 1); /* Return "self" */                                   \
-    return 1;                                                                  \
+#define lua_msgpack_function(NAME, PACKER)   \
+  static int(NAME)(lua_State * L) {          \
+    lua_msgpack_template(2);                 \
+    for (i = 2; i <= nargs; i++) {           \
+      PACKER(L, ud, i);                      \
+    }                                        \
+    lua_pushvalue(L, 1); /* Return "self" */ \
+    return 1;                                \
+  }
+
+#define lua_msgpack_function_level(NAME, PACKER) \
+  static int(NAME)(lua_State * L) {              \
+    lua_msgpack_template(2);                     \
+    for (i = 2; i <= nargs; i++) {               \
+      PACKER(L, ud, i, 1);                       \
+    }                                            \
+    lua_pushvalue(L, 1); /* Return "self" */     \
+    return 1;                                    \
   }
 
 lua_msgpack_function(luaL_pack_char, lua_pack_char)
@@ -873,9 +904,9 @@ lua_msgpack_function(luaL_pack_integer, lua_pack_integer)
 lua_msgpack_function(luaL_pack_number, lua_pack_number)
 lua_msgpack_function(luaL_pack_vector, lua_pack_vector)
 
-lua_msgpack_function(luaL_pack_nil, lua_pack_nil);
-lua_msgpack_function(luaL_pack_true, lua_pack_true);
-lua_msgpack_function(luaL_pack_false, lua_pack_false);
+lua_msgpack_function_op(luaL_pack_nil, lua_pack_nil);
+lua_msgpack_function_op(luaL_pack_true, lua_pack_true);
+lua_msgpack_function_op(luaL_pack_false, lua_pack_false);
 lua_msgpack_function(luaL_pack_boolean, lua_pack_boolean);
 
 lua_msgpack_function(luaL_pack_string, lua_pack_string)
@@ -890,7 +921,7 @@ lua_msgpack_function_level(luaL_pack_unparsed_table, lua_pack_table);
 lua_msgpack_function_level(luaL_pack_any, lua_pack_any);
 
 static const luaL_Reg packers[] = {
-  { "nil", luaL_pack_nil, },
+  { "nil", luaL_pack_nil, }, { "null", luaL_pack_nil, },
   { "boolean", luaL_pack_boolean, },
   { "string_compat", luaL_pack_v4, },
   { "_string", luaL_pack_string, },
@@ -907,8 +938,8 @@ static const luaL_Reg packers[] = {
   { "double", luaL_pack_double },
   { "number", luaL_pack_number },
   { "any", luaL_pack_any },
-  { "true", luaL_pack_true, },
-  { "false", luaL_pack_false, },
+  { "true", luaL_pack_true, }, { "t", luaL_pack_true, },
+  { "false", luaL_pack_false, }, { "f", luaL_pack_false, },
   { "fix_uint8", luaL_pack_fix_uint8, },
   { "fix_uint16", luaL_pack_fix_uint16, },
   { "fix_uint32", luaL_pack_fix_uint32, },
@@ -1022,9 +1053,6 @@ static const luaL_Reg msgpack_metafuncs[] = {
 ** ===================================================================
 */
 
-/* Reference to null */
-static int mp_null_ref = LUA_NOREF;
-
 static const char *const opts[] = {
   "unsigned", "integer", "float", "double",
   "string_compat", "string_binary",
@@ -1044,7 +1072,7 @@ static const int optsnum[] = {
 ** returns the size_t. If the argument is absent or is nil, returns def.
 ** Otherwise, throw an error.
 */
-static inline size_t luaL_optsizet (lua_State *L, int arg, size_t def) {
+static size_t luaL_optsizet (lua_State *L, int arg, size_t def) {
   lua_Integer i;
   if (lua_isnoneornil(L, arg))
     return def;
@@ -1071,7 +1099,7 @@ LUALIB_API int mp_pack (lua_State *L) {
     return luaL_argerror(L, 0, "MessagePack pack needs input");
   else if (!lua_checkstack(L, nargs))
     return luaL_argerror(L, 0, "too many arguments for MessagePack pack");
-  else if (!(ud =  lua_msgpack_create(L, MP_PACKING)))
+  else if (!(ud = lua_msgpack_create(L, MP_PACKING)))
     return luaL_error(L, "could not allocate packer UD");
 
   top = lua_gettop(L);
@@ -1179,7 +1207,6 @@ LUALIB_API int mp_get_extension (lua_State *L) {
 LUALIB_API int mp_set_extension (lua_State *L) {
   lua_Integer type = 0;
   luaL_checktype(L, 1, LUA_TTABLE);
-  luaL_checkstack(L, 4, "set_extension");
 
   /* Quickly sanitize extension table */
   lua_getfield(L, 1, LUACMSGPACK_META_MTYPE);
@@ -1193,31 +1220,32 @@ LUALIB_API int mp_set_extension (lua_State *L) {
     return luaL_argerror(L, 2, "missing pack/unpack metamethods.");
   lua_pop(L, 3);
 
-  /* Ensure extension id isn't already used... */
+  /* Do: registry_ext[type] = extension_table */
   mp_getregt(L, LUACMSGPACK_REG_EXT);
-#if LUA_VERSION_NUM >= 503
-  lua_rawgeti(L, -1, type);  /* [ext, value] */
-#else
-  lua_rawgeti(L, -1, (int)type);
-#endif
+  lua_pushvalue(L, 1);
+  lua_rawseti(L, -2, mp_ti(type));  /* Pop: value */
+  lua_pop(L, 1);  /* Pop: LUACMSGPACK_REG_EXT */
+
+  lua_pushvalue(L, 1);  /* Return the extension table */
+  return 1;
+#if 0
+  /* Ensure extension id isn't already used... */
+  lua_rawgeti(L, -1, mp_ti(type));  /* [ext, value] */
 
   /* Do: registry.ext[type] = extension_table */
   if (lua_isnil(L, -1)) {
     lua_pushvalue(L, 1);
-#if LUA_VERSION_NUM >= 503
-    lua_rawseti(L, -3, type);  /* Pop: value */
-#else
-    lua_rawseti(L, -3, (int)type);
-#endif
+    lua_rawseti(L, -3, mp_ti(type));  /* Pop: value */
     lua_pop(L, 2);  /* Pop: nil & LUACMSGPACK_REG_EXT */
 
-    lua_pushvalue(L, 1); /* Return the extension table */
+    lua_pushvalue(L, 1);  /* Return the extension table */
     return 1;
   }
   else {
     lua_pop(L, 2);
     return luaL_error(L, "attempting to replace registered msgpack extension");
   }
+#endif
 }
 
 LUALIB_API int mp_clear_extension (lua_State *L) {
@@ -1273,11 +1301,7 @@ LUALIB_API int mp_set_type_extension (lua_State *L) {
     if (!LUACMSGPACK_EXT_VALID(ext) || ext == LUACMSGPACK_LUATYPE_EXT(ltype))
       return luaL_error(L, "msgpack extension type: invalid encoder!");
 
-#if LUA_VERSION_NUM >= 503
-    lua_rawgeti(L, -1, ext);  /* [ext, encoder] */
-#else
-    lua_rawgeti(L, -1, (int)ext);  /* [ext, encoder] */
-#endif
+    lua_rawgeti(L, -1, mp_ti(ext));  /* [ext, encoder] */
     if (lua_isnil(L, -1))
       return luaL_error(L, "attempting to associate to nil msgpack extension");
     lua_pop(L, 1);  /* [ext] */
@@ -1309,15 +1333,14 @@ LUALIB_API int mp_setoption (lua_State *L) {
     case MP_EMPTY_AS_ARRAY:
     case MP_UNSIGNED_INTEGERS:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      mp_setregi(L, LUACMSGPACK_REG_OPTIONS, lua_toboolean(L, 2) ?
-                                                (flags | opt) : (flags & ~opt));
+      mp_setregi(L, LUACMSGPACK_REG_OPTIONS, lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt));
       break;
     case MP_NUMBER_AS_INTEGER:
     case MP_NUMBER_AS_FLOAT:
     case MP_NUMBER_AS_DOUBLE:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_NUMBER : MP_MASK_NUMBER;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_NUMBER : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_NUMBER) == 0)
         flags |= (MP_DEFAULT & MP_MASK_NUMBER);
 
@@ -1327,19 +1350,18 @@ LUALIB_API int mp_setoption (lua_State *L) {
     case MP_ARRAY_WITH_HOLES:
     case MP_ARRAY_WITHOUT_HOLES:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_ARRAY : MP_MASK_ARRAY;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_ARRAY : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_ARRAY) == 0)
         flags |= (MP_DEFAULT & MP_MASK_ARRAY);
-      if ((flags & MP_ARRAY_AS_MAP) != 0)
-        flags &= ~MP_EMPTY_AS_ARRAY;
+
       mp_setregi(L, LUACMSGPACK_REG_OPTIONS, flags);
       break;
     case MP_STRING_BINARY:
     case MP_STRING_COMPAT:
       luaL_checktype(L, 2, LUA_TBOOLEAN);
-      flags &= lua_toboolean(L, 2) ? ~MP_MASK_STRING : MP_MASK_STRING;
-      flags = lua_toboolean(L, 2) ? (flags | opt) : (flags & ~opt);
+      flags &= lua_toboolean(L, 2) ? ~MP_MASK_STRING : ~opt;
+      flags |= lua_toboolean(L, 2) ? opt : 0;
       if ((flags & MP_MASK_STRING) == 0)
         flags |= (MP_DEFAULT & MP_MASK_STRING);
 
@@ -1407,16 +1429,12 @@ LUALIB_API int mp_getoption (lua_State *L) {
 
 /* Returns messagepack.null */
 static int mp_null (lua_State *L) {
+#if defined(LUACMSGPACK_STATIC_NIL)
   lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
+#else
+  lua_rawgeti(L, LUA_REGISTRYINDEX, mp_ti(mp_getregi(L, LUACMSGPACK_REG_NULL, LUA_REFNIL)));
+#endif
   return 1;
-}
-
-/* If the element on top of the stack is nil, replace it with its reference */
-static inline void mp_replace_null (lua_State *L) {
-  if (lua_isnil(L, -1)) {
-    lua_pop(L, 1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, mp_null_ref);
-  }
 }
 
 static int mp_set_string (lua_State *L) {
@@ -1478,7 +1496,7 @@ static int mp_safe (lua_State *L) {
   total_results = lua_gettop(L);
   if (err) {
     lua_pushnil(L);
-    lua_insert(L,-2);
+    lua_insert(L, -2);
     return 2;
   }
   return total_results;
@@ -1521,7 +1539,7 @@ static const luaL_Reg msgpack_lib[] = {
   { "extend_clear", mp_clear_extension },
   { "gettype", mp_get_type_extension },
   { "settype", mp_set_type_extension },
-  { "sentinel", mp_null },  /* compatibility alias */
+  { "sentinel", mp_null }, { "null", mp_null }, /* compatibility alias */
   { NULL, NULL }
 };
 
@@ -1536,7 +1554,7 @@ LUAMOD_API int luaopen_cmsgpack (lua_State *L) {
   {
     size_t i;
     /* Wrap all functions in the safe handler */
-    for (i = 0; i < (sizeof(msgpack_lib)/sizeof(*msgpack_lib) - 1); i++) {
+    for (i = 0; i < (sizeof(msgpack_lib) / sizeof(*msgpack_lib) - 1); i++) {
       lua_getfield(L, -1, msgpack_lib[i].name);
       lua_pushcclosure(L, mp_safe, 1);
       lua_setfield(L, -2, msgpack_lib[i].name);
@@ -1597,7 +1615,11 @@ LUAMOD_API int luaopen_cmsgpack (lua_State *L) {
 
   /* Create messagepack.null reference */
   lua_getfield(L, -1, "sentinel");
+#if defined(LUACMSGPACK_STATIC_NIL)
   mp_null_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+#else
+  mp_setregi(L, LUACMSGPACK_REG_NULL, luaL_ref(L, LUA_REGISTRYINDEX));
+#endif
 
   /* Register name globally for 5.1 */
 #if LUA_VERSION_NUM == 501

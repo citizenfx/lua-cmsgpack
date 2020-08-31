@@ -5,6 +5,7 @@ option (LUACMSGPACK_BIT32 "32bit compile" OFF)
 option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
 option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
 option (LUACMSGPACK_COMPAT "Compatible pack()" ON)
+option (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
 option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
 
 # compile in release  mode by default
@@ -22,7 +23,8 @@ if(UNIX)
     endif(APPLE)
 
     # Compiler options taken from Lua: lua/blob/master/makefile
-    add_compile_options(-fPIC
+    add_compile_options(
+        -fPIC
         #-fmax-errors=5
         -Wall
         -Wextra
@@ -42,16 +44,13 @@ if(UNIX)
         -Wstrict-overflow=2
         -Wformat=2
         -Wcast-qual
-    )
-
-    # The next warnings are neither valid nor needed for C++
-    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "\
-        -Wdeclaration-after-statement \
-        -Wmissing-prototypes \
-        -Wnested-externs \
-        -Wstrict-prototypes \
-        -Wc++-compat \
-        -Wold-style-definition"
+        # c_master is a C-only branch.
+        -Wdeclaration-after-statement
+        -Wmissing-prototypes
+        -Wnested-externs
+        -Wstrict-prototypes
+        -Wc++-compat
+        -Wold-style-definition
     )
 
     if(LUACMSGPACK_DEBUG)
@@ -72,6 +71,10 @@ if(UNIX)
 
     if(GRIT54_LONG)
         ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
+    endif()
+
+    if (LUACMSGPACK_STATIC_NIL)
+        add_definitions(-DLUACMSGPACK_STATIC_NIL)
     endif()
 
     if(LUACMSGPACK_BIT32)
@@ -107,6 +110,7 @@ endif()
 #-------------------------------------------------------------------------------
 # msgpack-c external dependency
 #-------------------------------------------------------------------------------
+set (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
 set(MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c/cfx)
 set(MSGPACK_C_DIR ${MSGPACK_C}/repo)
 set(MSGPACK_C_LIB_DIR ${MSGPACK_C_DIR})
@@ -123,8 +127,11 @@ ExternalProject_Add(msgpack
     PREFIX ${MSGPACK_C}
     GIT_REPOSITORY https://github.com/msgpack/msgpack-c.git
     GIT_TAG "4d36456799183a59654a4fae243af4c19e49d871"
-    CMAKE_ARGS -DMSGPACK_BUILD_EXAMPLES=OFF
+    CMAKE_ARGS += -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                  -DMSGPACK_BUILD_EXAMPLES=OFF
                   -DMSGPACK_BUILD_TESTS=OFF
+                  -DBUILD_SHARED_LIBS=OFF
                   -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
                   -DBUILD_TESTING=OFF
                   -DBUILD_SHARED_LIBS=OFF
