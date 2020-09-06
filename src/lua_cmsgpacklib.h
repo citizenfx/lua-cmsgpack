@@ -127,10 +127,6 @@ LUALIB_API int mp_packer_new (lua_State *L);
 ** the encoder that the serialization function handled packing its extension
 ** header
 **
-** This function will throw an error if attempting to register over an already
-** existing definition (even if it's the same metatable)/. and it returns
-** zero.
-**
 ** RETURN:
 **  The encoder-table passed as an argument.
 */
