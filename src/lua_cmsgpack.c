@@ -149,8 +149,8 @@ static int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags, size_
     else if (lua_type(L, -2) == LUA_TSTRING
              && mp_isinteger(L, -1)
              && ((n = lua_tointeger(L, -1)) >= 1 && ((size_t)n) <= MAX_SIZE)
-             && (key = lua_tolstring(L, -2, &strlen), strlen == 1)
-             && key[0] == 'n') {
+             && (key = lua_tolstring(L, -2, &strlen)) != NULL
+             && strlen == 1 && key[0] == 'n') {
       arraylen = (size_t)n;
       max = arraylen > max ? arraylen : max;
     }
@@ -777,48 +777,48 @@ lua_msgpack_function(luaL_pack_unsigned_int, lua_pack_unsigned_int)
 lua_msgpack_function(luaL_pack_unsigned_long, lua_pack_unsigned_long)
 lua_msgpack_function(luaL_pack_unsigned_long_long, lua_pack_unsigned_long_long)
 
-lua_msgpack_function(luaL_pack_uint8, lua_pack_uint8);
-lua_msgpack_function(luaL_pack_uint16, lua_pack_uint16);
-lua_msgpack_function(luaL_pack_uint32, lua_pack_uint32);
-lua_msgpack_function(luaL_pack_uint64, lua_pack_uint64);
-lua_msgpack_function(luaL_pack_int8, lua_pack_int8);
-lua_msgpack_function(luaL_pack_int16, lua_pack_int16);
-lua_msgpack_function(luaL_pack_int32, lua_pack_int32);
-lua_msgpack_function(luaL_pack_int64, lua_pack_int64);
+lua_msgpack_function(luaL_pack_uint8, lua_pack_uint8)
+lua_msgpack_function(luaL_pack_uint16, lua_pack_uint16)
+lua_msgpack_function(luaL_pack_uint32, lua_pack_uint32)
+lua_msgpack_function(luaL_pack_uint64, lua_pack_uint64)
+lua_msgpack_function(luaL_pack_int8, lua_pack_int8)
+lua_msgpack_function(luaL_pack_int16, lua_pack_int16)
+lua_msgpack_function(luaL_pack_int32, lua_pack_int32)
+lua_msgpack_function(luaL_pack_int64, lua_pack_int64)
 
-lua_msgpack_function(luaL_pack_fix_uint8, lua_pack_fix_uint8);
-lua_msgpack_function(luaL_pack_fix_uint16, lua_pack_fix_uint16);
-lua_msgpack_function(luaL_pack_fix_uint32, lua_pack_fix_uint32);
-lua_msgpack_function(luaL_pack_fix_uint64, lua_pack_fix_uint64);
-lua_msgpack_function(luaL_pack_fix_int8, lua_pack_fix_int8);
-lua_msgpack_function(luaL_pack_fix_int16, lua_pack_fix_int16);
-lua_msgpack_function(luaL_pack_fix_int32, lua_pack_fix_int32);
-lua_msgpack_function(luaL_pack_fix_int64, lua_pack_fix_int64);
+lua_msgpack_function(luaL_pack_fix_uint8, lua_pack_fix_uint8)
+lua_msgpack_function(luaL_pack_fix_uint16, lua_pack_fix_uint16)
+lua_msgpack_function(luaL_pack_fix_uint32, lua_pack_fix_uint32)
+lua_msgpack_function(luaL_pack_fix_uint64, lua_pack_fix_uint64)
+lua_msgpack_function(luaL_pack_fix_int8, lua_pack_fix_int8)
+lua_msgpack_function(luaL_pack_fix_int16, lua_pack_fix_int16)
+lua_msgpack_function(luaL_pack_fix_int32, lua_pack_fix_int32)
+lua_msgpack_function(luaL_pack_fix_int64, lua_pack_fix_int64)
 
-lua_msgpack_function(luaL_pack_signed_int16, lua_pack_signed_int16);
-lua_msgpack_function(luaL_pack_signed_int32, lua_pack_signed_int32);
-lua_msgpack_function(luaL_pack_signed_int64, lua_pack_signed_int64);
+lua_msgpack_function(luaL_pack_signed_int16, lua_pack_signed_int16)
+lua_msgpack_function(luaL_pack_signed_int32, lua_pack_signed_int32)
+lua_msgpack_function(luaL_pack_signed_int64, lua_pack_signed_int64)
 
 lua_msgpack_function(luaL_pack_float, lua_pack_float)
 lua_msgpack_function(luaL_pack_double, lua_pack_double)
 lua_msgpack_function(luaL_pack_integer, lua_pack_integer)
 lua_msgpack_function(luaL_pack_number, lua_pack_number)
 
-lua_msgpack_function_op(luaL_pack_nil, lua_pack_nil);
-lua_msgpack_function_op(luaL_pack_true, lua_pack_true);
-lua_msgpack_function_op(luaL_pack_false, lua_pack_false);
-lua_msgpack_function(luaL_pack_boolean, lua_pack_boolean);
+lua_msgpack_function_op(luaL_pack_nil, lua_pack_nil)
+lua_msgpack_function_op(luaL_pack_true, lua_pack_true)
+lua_msgpack_function_op(luaL_pack_false, lua_pack_false)
+lua_msgpack_function(luaL_pack_boolean, lua_pack_boolean)
 
 lua_msgpack_function(luaL_pack_string, lua_pack_string)
 lua_msgpack_function(luaL_pack_v4, lua_pack_v4)
 lua_msgpack_function(luaL_pack_bin, lua_pack_bin)
 lua_msgpack_function(luaL_pack_parse_string, lua_pack_parse_string)
 
-lua_msgpack_function_level(luaL_pack_array, lua_pack_array);
-lua_msgpack_function_level(luaL_pack_map, lua_pack_map);
-lua_msgpack_function_level(luaL_pack_parsed_table, lua_pack_extended_table);
-lua_msgpack_function_level(luaL_pack_unparsed_table, lua_pack_table);
-lua_msgpack_function_level(luaL_pack_any, lua_pack_any);
+lua_msgpack_function_level(luaL_pack_array, lua_pack_array)
+lua_msgpack_function_level(luaL_pack_map, lua_pack_map)
+lua_msgpack_function_level(luaL_pack_parsed_table, lua_pack_extended_table)
+lua_msgpack_function_level(luaL_pack_unparsed_table, lua_pack_table)
+lua_msgpack_function_level(luaL_pack_any, lua_pack_any)
 
 static const luaL_Reg packers[] = {
   { "nil", luaL_pack_nil, }, { "null", luaL_pack_nil, },
