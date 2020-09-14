@@ -349,20 +349,6 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer
 ** ===================================================================
 */
 
-#if defined(__GNUC__)
-  #define popcount __builtin_popcount
-#elif defined(_MSC_VER)
-  #include <intrin.h>
-  #define popcount __popcnt
-#else
-  static int popcount(uint32_t x) {
-    uint32_t c = 0;
-    for (; x > 0; x &= x - 1)
-      c++;
-    return c;
-  }
-#endif
-
 /*
 ** Maximum number of extension type associations, e.g., type(X) is associated to
 ** type(Y), type(Y) is associated to type(Z), etc.
@@ -506,7 +492,7 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
 
   int mode = flags & MP_MODE;
   lua_Integer options = mp_getregi(L, LUACMSGPACK_REG_OPTIONS, MP_DEFAULT);
-  if (popcount((uint32_t)mode) != 1) {
+  if (mode != MP_PACKING && mode != MP_UNPACKING && mode != MP_EXTERNAL) {
     luaL_error(L, "invalid msgpack flags: %d\n", flags);
     return NULL;
   }
