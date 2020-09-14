@@ -25,11 +25,6 @@ if (LUACMSGPACK_STATIC_NIL)
     add_definitions(-DLUACMSGPACK_STATIC_NIL)
 endif()
 
-option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
-if(GRIT54_LONG)
-    ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
-endif()
-
 if(UNIX)
     if(APPLE)
         set(PLAT "macosx")
