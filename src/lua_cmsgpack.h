@@ -444,51 +444,51 @@ static void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, 
     BODY(&(ud->u.packed.packer), s, len);                            \
   }
 
-lua_msgpack_int_func(lua_pack_char, msgpack_pack_char, char);
+lua_msgpack_int_func(lua_pack_char, msgpack_pack_char, char)
 
-lua_msgpack_int_func(lua_pack_signed_char, msgpack_pack_signed_char, signed char);
-lua_msgpack_int_func(lua_pack_short, msgpack_pack_short, short);
-lua_msgpack_int_func(lua_pack_int, msgpack_pack_int, int);
-lua_msgpack_int_func(lua_pack_long, msgpack_pack_long, long);
-lua_msgpack_int_func(lua_pack_long_long, msgpack_pack_long_long, long long);
-lua_msgpack_int_func(lua_pack_unsigned_char, msgpack_pack_unsigned_char, unsigned char);
-lua_msgpack_int_func(lua_pack_unsigned_short, msgpack_pack_unsigned_short, unsigned short);
-lua_msgpack_int_func(lua_pack_unsigned_int, msgpack_pack_unsigned_int, unsigned int);
-lua_msgpack_int_func(lua_pack_unsigned_long, msgpack_pack_unsigned_long, unsigned long);
-lua_msgpack_int_func(lua_pack_unsigned_long_long, msgpack_pack_unsigned_long_long, unsigned long long);
+lua_msgpack_int_func(lua_pack_signed_char, msgpack_pack_signed_char, signed char)
+lua_msgpack_int_func(lua_pack_short, msgpack_pack_short, short)
+lua_msgpack_int_func(lua_pack_int, msgpack_pack_int, int)
+lua_msgpack_int_func(lua_pack_long, msgpack_pack_long, long)
+lua_msgpack_int_func(lua_pack_long_long, msgpack_pack_long_long, long long)
+lua_msgpack_int_func(lua_pack_unsigned_char, msgpack_pack_unsigned_char, unsigned char)
+lua_msgpack_int_func(lua_pack_unsigned_short, msgpack_pack_unsigned_short, unsigned short)
+lua_msgpack_int_func(lua_pack_unsigned_int, msgpack_pack_unsigned_int, unsigned int)
+lua_msgpack_int_func(lua_pack_unsigned_long, msgpack_pack_unsigned_long, unsigned long)
+lua_msgpack_int_func(lua_pack_unsigned_long_long, msgpack_pack_unsigned_long_long, unsigned long long)
 
-lua_msgpack_int_func(lua_pack_uint8, msgpack_pack_uint8, uint8_t);
-lua_msgpack_int_func(lua_pack_uint16, msgpack_pack_uint16, uint16_t);
-lua_msgpack_int_func(lua_pack_uint32, msgpack_pack_uint32, uint32_t);
-lua_msgpack_int_func(lua_pack_uint64, msgpack_pack_uint64, uint64_t);
-lua_msgpack_int_func(lua_pack_int8, msgpack_pack_int8, int8_t);
-lua_msgpack_int_func(lua_pack_int16, msgpack_pack_int16, int16_t);
-lua_msgpack_int_func(lua_pack_int32, msgpack_pack_int32, int32_t);
-lua_msgpack_int_func(lua_pack_int64, msgpack_pack_int64, int64_t);
+lua_msgpack_int_func(lua_pack_uint8, msgpack_pack_uint8, uint8_t)
+lua_msgpack_int_func(lua_pack_uint16, msgpack_pack_uint16, uint16_t)
+lua_msgpack_int_func(lua_pack_uint32, msgpack_pack_uint32, uint32_t)
+lua_msgpack_int_func(lua_pack_uint64, msgpack_pack_uint64, uint64_t)
+lua_msgpack_int_func(lua_pack_int8, msgpack_pack_int8, int8_t)
+lua_msgpack_int_func(lua_pack_int16, msgpack_pack_int16, int16_t)
+lua_msgpack_int_func(lua_pack_int32, msgpack_pack_int32, int32_t)
+lua_msgpack_int_func(lua_pack_int64, msgpack_pack_int64, int64_t)
 
-lua_msgpack_int_func(lua_pack_fix_uint8, msgpack_pack_fix_uint8, uint8_t);
-lua_msgpack_int_func(lua_pack_fix_uint16, msgpack_pack_fix_uint16, uint16_t);
-lua_msgpack_int_func(lua_pack_fix_uint32, msgpack_pack_fix_uint32, uint32_t);
-lua_msgpack_int_func(lua_pack_fix_uint64, msgpack_pack_fix_uint64, uint64_t);
-lua_msgpack_int_func(lua_pack_fix_int8, msgpack_pack_fix_int8, int8_t);
-lua_msgpack_int_func(lua_pack_fix_int16, msgpack_pack_fix_int16, int16_t);
-lua_msgpack_int_func(lua_pack_fix_int32, msgpack_pack_fix_int32, int32_t);
-lua_msgpack_int_func(lua_pack_fix_int64, msgpack_pack_fix_int64, int64_t);
+lua_msgpack_int_func(lua_pack_fix_uint8, msgpack_pack_fix_uint8, uint8_t)
+lua_msgpack_int_func(lua_pack_fix_uint16, msgpack_pack_fix_uint16, uint16_t)
+lua_msgpack_int_func(lua_pack_fix_uint32, msgpack_pack_fix_uint32, uint32_t)
+lua_msgpack_int_func(lua_pack_fix_uint64, msgpack_pack_fix_uint64, uint64_t)
+lua_msgpack_int_func(lua_pack_fix_int8, msgpack_pack_fix_int8, int8_t)
+lua_msgpack_int_func(lua_pack_fix_int16, msgpack_pack_fix_int16, int16_t)
+lua_msgpack_int_func(lua_pack_fix_int32, msgpack_pack_fix_int32, int32_t)
+lua_msgpack_int_func(lua_pack_fix_int64, msgpack_pack_fix_int64, int64_t)
 
-lua_msgpack_int_func(lua_pack_signed_int16, msgpack_pack_signed_int16, int16_t);
-lua_msgpack_int_func(lua_pack_signed_int32, msgpack_pack_signed_int32, int32_t);
-lua_msgpack_int_func(lua_pack_signed_int64, msgpack_pack_signed_int64, int64_t);
+lua_msgpack_int_func(lua_pack_signed_int16, msgpack_pack_signed_int16, int16_t)
+lua_msgpack_int_func(lua_pack_signed_int32, msgpack_pack_signed_int32, int32_t)
+lua_msgpack_int_func(lua_pack_signed_int64, msgpack_pack_signed_int64, int64_t)
 
-lua_msgpack_number_func(lua_pack_float, msgpack_pack_float, float);
-lua_msgpack_number_func(lua_pack_double, msgpack_pack_double, double);
+lua_msgpack_number_func(lua_pack_float, msgpack_pack_float, float)
+lua_msgpack_number_func(lua_pack_double, msgpack_pack_double, double)
 
-lua_msgpack_op(lua_pack_nil, msgpack_pack_nil);
-lua_msgpack_op(lua_pack_true, msgpack_pack_true);
-lua_msgpack_op(lua_pack_false, msgpack_pack_false);
+lua_msgpack_op(lua_pack_nil, msgpack_pack_nil)
+lua_msgpack_op(lua_pack_true, msgpack_pack_true)
+lua_msgpack_op(lua_pack_false, msgpack_pack_false)
 
-lua_msgpack_str_func(lua_pack_string, msgpack_pack_str, msgpack_pack_str_body);
-lua_msgpack_str_func(lua_pack_v4, msgpack_pack_v4raw, msgpack_pack_v4raw_body);
-lua_msgpack_str_func(lua_pack_bin, msgpack_pack_bin, msgpack_pack_bin_body);
+lua_msgpack_str_func(lua_pack_string, msgpack_pack_str, msgpack_pack_str_body)
+lua_msgpack_str_func(lua_pack_v4, msgpack_pack_v4raw, msgpack_pack_v4raw_body)
+lua_msgpack_str_func(lua_pack_bin, msgpack_pack_bin, msgpack_pack_bin_body)
 
 static LUACMSGPACK_INLINE void lua_pack_array (lua_State *L, lua_msgpack *ud, int idx, int level) {
   ((void)level);
@@ -751,9 +751,9 @@ static LUACMSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
       if (!mp_encode_ext_lua_type(L, ud, idx, (int8_t)LUACMSGPACK_LUATYPE_EXT(t))) {
         msgpack_packer *pk = &(ud->u.packed.packer);
 #if defined(LUACMSGPACK_BIT32)
-        msgpack_pack_uint32(pk, (uint32_t)lua_touserdata(L, idx));
+        msgpack_pack_uint32(pk, (uint32_t)((uintptr_t)lua_touserdata(L, idx)));
 #else
-        msgpack_pack_uint64(pk, (uint64_t)lua_touserdata(L, idx));
+        msgpack_pack_uint64(pk, (uint64_t)((uintptr_t)lua_touserdata(L, idx)));
 #endif
       }
       break;

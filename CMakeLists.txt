@@ -1,16 +1,33 @@
 cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 
 project(lua-cmsgpack C)
-option (LUACMSGPACK_BIT32 "32bit compile" OFF)
-option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
-option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
-option (LUACMSGPACK_COMPAT "Compatible pack()" ON)
-option (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
-option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
+if (CMAKE_C_COMPILER MATCHES ".*clang")
+    set(CMAKE_COMPILER_IS_CLANGCC 1)
+endif()
 
 # compile in release  mode by default
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
+
+option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
+if(LUACMSGPACK_SAFE)
+    add_definitions(-DLUACMSGPACK_SAFE)
+endif()
+
+option (LUACMSGPACK_COMPAT "Compatible pack()" OFF)
+if(LUACMSGPACK_COMPAT)
+    add_definitions(-DLUACMSGPACK_COMPAT)
+endif()
+
+option (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
+if (LUACMSGPACK_STATIC_NIL)
+    add_definitions(-DLUACMSGPACK_STATIC_NIL)
+endif()
+
+option (GRIT54_LONG "extend vector definitions for gritLua 5.4" OFF)
+if(GRIT54_LONG)
+    ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
 endif()
 
 if(UNIX)
@@ -23,9 +40,28 @@ if(UNIX)
     endif(APPLE)
 
     # Compiler options taken from Lua: lua/blob/master/makefile
+    if (CMAKE_COMPILER_IS_CLANGCC)
+        add_compile_options(
+            -ferror-limit=5
+            -fno-common
+            #-Weverything
+            #-Wno-gnu-zero-variadic-macro-arguments
+            #-Wno-covered-switch-default
+            #-Wno-reserved-id-macro
+        )
+    elseif (CMAKE_COMPILER_IS_GNUCC)
+        add_compile_options(
+            -fmax-errors=5
+            -Wduplicated-cond
+            -Wduplicated-branches
+            -Wrestrict
+            -Wnull-dereference
+            -Wlogical-op
+        )
+    endif()
+
     add_compile_options(
         -fPIC
-        #-fmax-errors=5
         -Wall
         -Wextra
         -Wshadow
@@ -33,17 +69,22 @@ if(UNIX)
         -Wundef
         -Wwrite-strings
         -Wredundant-decls
-        #-Wdisabled-optimization
         -Wdouble-promotion
-        #-Wlogical-op
-        #-Wno-aggressive-loop-optimizations
-        # the next warnings might be useful sometimes, but usually they generate too much noise
-        # -Werror
+        -Wunused-parameter
+        -Wno-comment
+        -Wno-unused-function
+        -Wno-array-bounds
         -Wconversion
         -Wno-sign-conversion
         -Wstrict-overflow=2
         -Wformat=2
         -Wcast-qual
+        #-Wdisabled-optimization
+        #-Wlogical-op
+        #-Wno-aggressive-loop-optimizations
+        # the next warnings might be useful sometimes, but usually they generate too much noise
+        #-Werror
+
         # c_master is a C-only branch.
         -Wdeclaration-after-statement
         -Wmissing-prototypes
@@ -53,6 +94,7 @@ if(UNIX)
         -Wold-style-definition
     )
 
+    option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
     if(LUACMSGPACK_DEBUG)
         add_compile_options(-O0 -g)
         add_definitions(-DLUACMSGPACK_DEBUG)
@@ -61,22 +103,7 @@ if(UNIX)
         add_compile_options(-O3)
     endif()
 
-    if(LUACMSGPACK_SAFE)
-        add_definitions(-DLUACMSGPACK_SAFE)
-    endif()
-
-    if(LUACMSGPACK_COMPAT)
-        add_definitions(-DLUACMSGPACK_COMPAT)
-    endif()
-
-    if(GRIT54_LONG)
-        ADD_DEFINITIONS(-DGRIT_LONG_FLOAT)
-    endif()
-
-    if (LUACMSGPACK_STATIC_NIL)
-        add_definitions(-DLUACMSGPACK_STATIC_NIL)
-    endif()
-
+    option (LUACMSGPACK_BIT32 "32bit compile" OFF)
     if(LUACMSGPACK_BIT32)
         add_definitions(-DLUACMSGPACK_BIT32)
         if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
