@@ -4,7 +4,6 @@
 #ifndef lua_cmsgpacklib_h
 #define lua_cmsgpacklib_h
 
-#include <luaconf.h>
 #include <lua.h>
 
 #define LUACMSGPACK_NAME "lua-msgpack-c"
@@ -199,6 +198,12 @@ LUALIB_API int mp_get_type_extension (lua_State *L);
 LUALIB_API int mp_setoption (lua_State *L);
 LUALIB_API int mp_getoption (lua_State *L);
 
+#if defined(LUA_COMPILED_AS_HPP)
+extern "C" {
+#endif
 LUAMOD_API int luaopen_cmsgpack (lua_State *L);
+#if defined(LUA_COMPILED_AS_HPP)
+}
+#endif
 
 #endif
