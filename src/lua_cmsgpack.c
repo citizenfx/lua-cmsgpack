@@ -42,29 +42,59 @@
   #error unsupported Lua version
 #endif
 
-#if LUA_VERSION_NUM < 502
-  #define lua_absindex(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : lua_gettop(L) + (i) + 1)
-static int luaL_getsubtable (lua_State *L, int idx, const char *fname) {
-  lua_getfield(L, idx, fname);
+
+/*
+** Registry (sub-)table
+**
+** http://lua-users.org/lists/lua-l/2011-12/msg00039.html
+*/
+#if defined(LUACMSGPACK_EXPERIMENTAL) && LUA_VERSION_NUM >= 502
+  /* Registry Table Keys */
+  static int lua_cmsgpack_key = 0;
+  static int lua_cmsgpack_key_flags = 0;
+  static int lua_cmsgpack_key_ext = 0;
+  static int lua_cmsgpack_key_nullref = 0;
+
+  /* Registry Table Keys */
+  #define LUACMSGPACK_REG ((const char*)(&lua_cmsgpack_key))
+  #define LUACMSGPACK_REG_OPTIONS ((const char*)(&lua_cmsgpack_key_flags))
+  #define LUACMSGPACK_REG_EXT ((const char*)(&lua_cmsgpack_key_ext))
+  #define LUACMSGPACK_REG_NULL ((const char*)(&lua_cmsgpack_key_nullref))
+
+  #define lua_cmsgpack_getfield(L, I, K) lua_rawgetp((L), (I), (K))
+  #define lua_cmsgpack_setfield(L, I, K) lua_rawsetp((L), (I), (K))
+#else
+  /* Registry Table Keys */
+  #define LUACMSGPACK_REG "lua_cmsgpack"
+  #define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
+  #define LUACMSGPACK_REG_EXT "lua_cmsgpack_meta"
+  #define LUACMSGPACK_REG_NULL "lua_cmsgpack_null"
+
+  #define lua_cmsgpack_getfield(L, I, K) lua_getfield((L), (I), (K))
+  #define lua_cmsgpack_setfield(L, I, K) lua_setfield((L), (I), (K))
+#endif
+
+#define lua_absindex(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : lua_gettop(L) + (i) + 1)
+static int lua_cmsgpack_getsubtable (lua_State *L, int idx, const char *key) {
+  lua_cmsgpack_getfield(L, idx, key);
   if (lua_istable(L, -1))
-    return 1;  /* table already there */
+    return 1; /* table already there */
   else {
-    lua_pop(L, 1);  /* remove previous result */
+    lua_pop(L, 1); /* remove previous result */
     idx = lua_absindex(L, idx);
     lua_newtable(L);
-    lua_pushvalue(L, -1);  /* copy to be left at top */
-    lua_setfield(L, idx, fname);  /* assign new table to field */
-    return 0;  /* false, because did not find table there */
+    lua_pushvalue(L, -1); /* copy to be left at top */
+    lua_cmsgpack_setfield(L, idx, key); /* assign new table to field */
+    return 0; /* false, because did not find table there */
   }
 }
-#endif
 
 /* Fetch a lua_Int from the registry table */
 static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
   lua_Integer result;
 
-  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
-  lua_getfield(L, -1, key);
+  lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
+  lua_cmsgpack_getfield(L, -1, key);
   result = luaL_optinteger(L, -1, opt);
   lua_pop(L, 2);  /* registry & key */
   return result;
@@ -72,16 +102,16 @@ static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key,
 
 /* Push a integer into the registry table at the specified key */
 static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
-  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
+  lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   lua_pushinteger(L, value);
-  lua_setfield(L, -2, key);  /* pops value */
+  lua_cmsgpack_setfield(L, -2, key);  /* pops value */
   lua_pop(L, 1);  /* getregtable */
 }
 
 /* Get a subtable within the registry table */
 static LUACMSGPACK_INLINE void mp_getregt (lua_State *L, const char *name) {
-  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
-  if (!luaL_getsubtable(L, -1, name)) {
+  lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
+  if (!lua_cmsgpack_getsubtable(L, -1, name)) {
     /* initialize it */
   }
 
@@ -1158,7 +1188,7 @@ LUALIB_API int mp_get_type_extension (lua_State *L) {
 
   mp_getregt(L, LUACMSGPACK_REG_EXT);
   lua_pushinteger(L, LUACMSGPACK_LUATYPE_EXT(ltype));  /* Ensure is array */
-  lua_gettable(L, -2);
+  lua_rawget(L, -2);
   if (mp_isinteger(L, -1)) {  /* Associated to an extension type, fetch it */
     lua_Integer ext = lua_tointeger(L, -1); lua_pop(L, 1);
     mp_getregt(L, LUACMSGPACK_REG_EXT);  /* [ext] */

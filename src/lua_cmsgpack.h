@@ -94,11 +94,6 @@ typedef struct lua_mpbuffer {
   #define LUAMOD_API LUALIB_API
 #endif
 
-#define LUACMSGPACK_REG "lua_cmsgpack"
-#define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
-#define LUACMSGPACK_REG_EXT "lua_cmsgpack_meta"
-#define LUACMSGPACK_REG_NULL "lua_rapidjson_nullref"
-
 #define LUACMSGPACK_META_MTYPE "__ext"
 #define LUACMSGPACK_META_ENCODE "__pack"
 #define LUACMSGPACK_META_DECODE "__unpack"
@@ -634,10 +629,8 @@ static LUACMSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
     case LUA_TNUMBER: lua_pack_number(L, ud, idx); break;
     case LUA_TSTRING: lua_pack_parse_string(L, ud, idx); break;
     case LUA_TTABLE: lua_pack_extended_table(L, ud, idx, level); break;
-    case LUA_TUSERDATA:
-    case LUA_TTHREAD:
     case LUA_TFUNCTION:
-      if (t == LUA_TFUNCTION && mp_is_null(L, idx)) {
+      if (mp_is_null(L, idx)) {
         msgpack_pack_nil(&(ud->u.packed.packer));
         break;
       }
@@ -659,8 +652,10 @@ static LUACMSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
       }
       break;
     }
-    default:
-      luaL_error(L, "type <%s> cannot be msgpack'd", lua_typename(L, t));
+    case LUA_TUSERDATA:
+    case LUA_TTHREAD:
+    default: /* Otherwise, using a type unknown to vanilla Lua */
+      lua_pack_type_extended(L, ud, idx);
       break;
   }
 }
