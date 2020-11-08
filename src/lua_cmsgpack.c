@@ -511,11 +511,8 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
     luaL_error(L, "invalid msgpack flags: %d\n", flags);
     return NULL;
   }
-  else if ((ud = mp_pcast(lua_msgpack *, mp_newuserdata(L, sizeof(lua_msgpack)))) == NULL) {
-    luaL_error(L, "Could not allocate packer UD");
-    return NULL;
-  }
 
+  ud = mp_pcast(lua_msgpack *, mp_newuserdata(L, sizeof(lua_msgpack)));
   if (mode & MP_PACKING) {
     lua_mpbuffer_init(L, &ud->u.packed.buffer);
     msgpack_packer_init(&ud->u.packed.packer, &ud->u.packed.buffer, lua_mpbuffer_append);
@@ -527,10 +524,6 @@ LUA_API lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
 
     /* Allocate buffer userdata [table, buffer] */
     ud->u.external.buffer = mp_pcast(lua_mpbuffer *, mp_newuserdata(L, sizeof(lua_mpbuffer)));
-    if (ud->u.external.buffer == NULL) {
-      luaL_error(L, "Could not allocate buffer UD");
-      return NULL;
-    }
 
     luaL_getmetatable(L, LUA_MPBUFFER_USERDATA);  /* [..., buffer, meta] */
     lua_setmetatable(L, -2);  /* [..., buffer] */
