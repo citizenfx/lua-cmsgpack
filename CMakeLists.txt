@@ -1,42 +1,52 @@
 cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
 
 project(lua-cmsgpack C)
-if (CMAKE_C_COMPILER MATCHES ".*clang")
-    set(CMAKE_COMPILER_IS_CLANGCC 1)
-endif()
+IF (CMAKE_C_COMPILER MATCHES ".*clang")
+    SET (CMAKE_COMPILER_IS_CLANGCC 1)
+ENDIF ()
 
 # compile in release  mode by default
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
-endif()
+IF (NOT CMAKE_BUILD_TYPE)
+    SET (CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+ENDIF ()
 
-option (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
-if(LUACMSGPACK_SAFE)
-    add_definitions(-DLUACMSGPACK_SAFE)
-endif()
+OPTION (LUACMSGPACK_SAFE "Wrap API functions in pcall" OFF)
+IF (LUACMSGPACK_SAFE)
+    ADD_DEFINITIONS (-DLUACMSGPACK_SAFE)
+ENDIF ()
 
-option (LUACMSGPACK_COMPAT "Compatible pack()" OFF)
-if(LUACMSGPACK_COMPAT)
-    add_definitions(-DLUACMSGPACK_COMPAT)
-endif()
+OPTION (LUACMSGPACK_COMPAT "Compatible pack()" OFF)
+IF (LUACMSGPACK_COMPAT)
+    ADD_DEFINITIONS (-DLUACMSGPACK_COMPAT)
+ENDIF ()
 
-option (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
-if (LUACMSGPACK_STATIC_NIL)
-    add_definitions(-DLUACMSGPACK_STATIC_NIL)
-endif()
+OPTION (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
+IF (LUACMSGPACK_STATIC_NIL)
+    ADD_DEFINITIONS (-DLUACMSGPACK_STATIC_NIL)
+ENDIF ()
 
-if(UNIX)
-    if(APPLE)
-        set(PLAT "macosx")
-        set(LINK_FLAGS "-bundle -undefined dynamic_lookup -all_load")
-    else(APPLE)
-        set(PLAT "linux")
-        set(LINK_FLAGS "-shared")
-    endif(APPLE)
+OPTION (LUA_COMPILED_AS_HPP "Library compiled for Lua with C++ linkage" OFF)
+IF (LUA_COMPILED_AS_HPP)
+    ADD_DEFINITIONS (-DLUA_COMPILED_AS_HPP)
+ENDIF ()
+
+OPTION (LUACMSGPACK_EXPERIMENTAL "Experimental performance tweaks" OFF)
+IF (LUACMSGPACK_EXPERIMENTAL)
+    ADD_DEFINITIONS (-DLUACMSGPACK_EXPERIMENTAL)
+ENDIF ()
+
+IF (UNIX)
+    IF (APPLE)
+        SET (PLAT "macosx")
+        SET (LINK_FLAGS "-bundle -undefined dynamic_lookup -all_load")
+    ELSE (APPLE)
+        SET (PLAT "linux")
+        SET (LINK_FLAGS "-shared")
+    ENDIF (APPLE)
 
     # Compiler options taken from Lua: lua/blob/master/makefile
-    if (CMAKE_COMPILER_IS_CLANGCC)
-        add_compile_options(
+    IF (CMAKE_COMPILER_IS_CLANGCC)
+        ADD_COMPILE_OPTIONS (
             -ferror-limit=5
             -fno-common
             #-Weverything
@@ -44,8 +54,8 @@ if(UNIX)
             #-Wno-covered-switch-default
             #-Wno-reserved-id-macro
         )
-    elseif (CMAKE_COMPILER_IS_GNUCC)
-        add_compile_options(
+    ELSEIF (CMAKE_COMPILER_IS_GNUCC)
+        ADD_COMPILE_OPTIONS (
             -fmax-errors=5
             -Wduplicated-cond
             -Wduplicated-branches
@@ -53,9 +63,9 @@ if(UNIX)
             -Wnull-dereference
             -Wlogical-op
         )
-    endif()
+    ENDIF ()
 
-    add_compile_options(
+    ADD_COMPILE_OPTIONS (
         -fPIC
         -Wall
         -Wextra
@@ -89,59 +99,63 @@ if(UNIX)
         -Wold-style-definition
     )
 
-    option (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
-    if(LUACMSGPACK_DEBUG)
-        add_compile_options(-O0 -g)
-        add_definitions(-DLUACMSGPACK_DEBUG)
-        add_definitions(-DLUA_USER_H="ltests.h")
-    else()
-        add_compile_options(-O3)
-    endif()
+    OPTION (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
+    IF (LUACMSGPACK_DEBUG)
+        ADD_COMPILE_OPTIONS (-O0 -g)
+        ADD_DEFINITIONS (-DLUACMSGPACK_DEBUG)
+        ADD_DEFINITIONS (-DLUA_USER_H="ltests.h")
+    ELSE ()
+        ADD_COMPILE_OPTIONS (-O3)
+    ENDIF ()
 
-    option (LUACMSGPACK_BIT32 "32bit compile" OFF)
-    if(LUACMSGPACK_BIT32)
-        add_definitions(-DLUACMSGPACK_BIT32)
-        if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-            set (CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}")
-            set (CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
-            set (CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
-        elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-            set (CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}")
-            set (CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
-            set (CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
-        endif()
-    endif()
-else(UNIX)
-    if(WIN32)
-        set(PLAT "win32")
-        add_definitions(-DLUA_BUILD_AS_DLL -DLUA_LIB -D_CRT_SECURE_NO_WARNINGS)
-    else(WIN32)
-        set(PLAT "unsupported")
-    endif(WIN32)
-endif(UNIX)
+    OPTION (LUACMSGPACK_BIT32 "32bit compile" OFF)
+    IF (LUACMSGPACK_BIT32)
+        ADD_DEFINITIONS (-DLUACMSGPACK_BIT32)
+        IF ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+            SET (CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}")
+            SET (CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
+            SET (CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
+        ELSEIF ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+            SET (CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}")
+            SET (CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
+            SET (CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
+        ENDIF ()
+    ENDIF ()
+ELSE (UNIX)
+    IF (WIN32)
+        SET (PLAT "win32")
+        ADD_DEFINITIONS (-DLUA_BUILD_AS_DLL -DLUA_LIB -D_CRT_SECURE_NO_WARNINGS)
+        ADD_COMPILE_OPTIONS ( /W4 )
+    ELSE(WIN32)
+        SET (PLAT "unsupported")
+    ENDIF (WIN32)
+ENDIF (UNIX)
 
 #-------------------------------------------------------------------------------
 # Lua dependency
 #-------------------------------------------------------------------------------
-if(NOT LUA_INCLUDE_DIR OR (WIN32 AND NOT LUA_LIBRARIES))
-    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-    find_package(Lua REQUIRED)
-endif()
+IF (NOT LUA_INCLUDE_DIR OR (WIN32 AND NOT LUA_LIBRARIES))
+    SET (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+    FIND_PACKAGE (Lua REQUIRED)
+ENDIF ()
 #-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
 # msgpack-c external dependency
 #-------------------------------------------------------------------------------
-set (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
-set(MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c/cfx)
-set(MSGPACK_C_DIR ${MSGPACK_C}/repo)
-set(MSGPACK_C_LIB_DIR ${MSGPACK_C_DIR})
-set(MSGPACK_C_INCLUDE_DIR ${MSGPACK_C_DIR}/include)
-if(LUACMSGPACK_BIT32)
-    set(MSGPACK_C_32BIT -DMSGPACK_32BIT=ON)
-else()
-    set(MSGPACK_C_32BIT "")
-endif()
+IF (UNIX)
+    SET (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
+ENDIF ()
+
+SET (MSGPACK_C ${CMAKE_BINARY_DIR}/msgpack-c/cfx)
+SET (MSGPACK_C_DIR ${MSGPACK_C}/repo)
+SET (MSGPACK_C_LIB_DIR ${MSGPACK_C_DIR})
+SET (MSGPACK_C_INCLUDE_DIR ${MSGPACK_C_DIR}/include)
+IF (LUACMSGPACK_BIT32)
+    SET (MSGPACK_C_32BIT -DMSGPACK_32BIT=ON)
+ELSE ()
+    SET (MSGPACK_C_32BIT "")
+ENDIF ()
 
 # Need to ensure msgpack-c is compiled with -fPIC.
 include(ExternalProject)
@@ -173,34 +187,41 @@ ExternalProject_Add(msgpack
     EXCLUDE_FROM_ALL TRUE
     BUILD_BYPRODUCTS ${MSGPACK_C_LIB_DIR}/libmsgpackc.a
 )
-add_library(libmsgpackc STATIC SHARED IMPORTED)
-set_target_properties(libmsgpackc PROPERTIES IMPORTED_LOCATION ${MSGPACK_C_LIB_DIR}/libmsgpackc.a)
-add_dependencies(libmsgpackc msgpack)
-set_property(TARGET msgpack PROPERTY IMPORTED_LOCATION libmsgpackc)
+
+ADD_LIBRARY (libmsgpackc STATIC SHARED IMPORTED)
+SET_TARGET_PROPERTIES (libmsgpackc PROPERTIES IMPORTED_LOCATION ${MSGPACK_C_LIB_DIR}/libmsgpackc.a)
+SET_PROPERTY (TARGET msgpack PROPERTY IMPORTED_LOCATION libmsgpackc)
+
 #-------------------------------------------------------------------------------
 
-include_directories(${LUA_INCLUDE_DIR} ${MSGPACK_C_INCLUDE_DIR})
-set(SOURCES src/lua_pack_template.h src/lua_cmsgpack.h src/lua_cmsgpacklib.h src/lua_cmsgpack.c )
-add_library(cmsgpack MODULE ${SOURCES} )
+INCLUDE_DIRECTORIES (${LUA_INCLUDE_DIR} ${MSGPACK_C_INCLUDE_DIR})
+FILE (GLOB_RECURSE sourceFiles ./src/*.c)
+FILE (GLOB_RECURSE headerFiles ./src/*.h)
+SET (SOURCES ${sourceFiles} ${headerFiles})
+IF (LUA_COMPILED_AS_HPP)
+    ENABLE_LANGUAGE (CXX)
+    SET_SOURCE_FILES_PROPERTIES (${sourceFiles} PROPERTIES LANGUAGE CXX)
+ENDIF ()
 
-if (LINK_FLAGS)
-    set_target_properties(cmsgpack PROPERTIES
-        LINK_FLAGS ${LINK_FLAGS}
-    )
-endif()
+ADD_LIBRARY (cmsgpack MODULE ${SOURCES})
+ADD_DEPENDENCIES (libmsgpackc msgpack)
+IF (LUACMSGPACK_BIT32)
+    SET_TARGET_PROPERTIES (cmsgpack PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
+ENDIF ()
 
-set_target_properties(cmsgpack PROPERTIES PREFIX "")
+# Win32 modules need to be linked to the Lua library.
+IF (WIN32)
+    TARGET_INCLUDE_DIRECTORIES (cmsgpack PRIVATE ${INCLUDE_DIRECTORIES})
+    TARGET_LINK_LIBRARIES (cmsgpack ${LUA_LIBRARIES})
+ENDIF ()
 
-if(WIN32)
-    # Win32 modules need to be linked to the Lua library.
-    set(_MODULE_LINK ${LUA_LIBRARY} ${_MODULE_LINK})
-endif()
+IF (LINK_FLAGS)
+    SET_TARGET_PROPERTIES (cmsgpack PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
+ENDIF ()
 
-if(LUACMSGPACK_BIT32)
-    set_target_properties(cmsgpack PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
-endif()
+SET_TARGET_PROPERTIES (cmsgpack PROPERTIES PREFIX "")
 
-target_link_libraries(cmsgpack ${_MODULE_LINK} libmsgpackc)
-if (CMAKE_INSTALL_PREFIX)
-  install(TARGETS cmsgpack DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
-endif(CMAKE_INSTALL_PREFIX)
+TARGET_LINK_LIBRARIES (cmsgpack ${_MODULE_LINK} libmsgpackc)
+IF (CMAKE_INSTALL_PREFIX)
+  INSTALL (TARGETS cmsgpack DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+ENDIF (CMAKE_INSTALL_PREFIX)
