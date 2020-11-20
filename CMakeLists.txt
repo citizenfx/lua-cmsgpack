@@ -20,11 +20,6 @@ IF (LUACMSGPACK_COMPAT)
     ADD_DEFINITIONS (-DLUACMSGPACK_COMPAT)
 ENDIF ()
 
-OPTION (LUACMSGPACK_STATIC_NIL "Store null reference in a static variable (no longer reentrant)" OFF)
-IF (LUACMSGPACK_STATIC_NIL)
-    ADD_DEFINITIONS (-DLUACMSGPACK_STATIC_NIL)
-ENDIF ()
-
 OPTION (LUA_COMPILED_AS_HPP "Library compiled for Lua with C++ linkage" OFF)
 IF (LUA_COMPILED_AS_HPP)
     ADD_DEFINITIONS (-DLUA_COMPILED_AS_HPP)
@@ -89,15 +84,19 @@ IF (UNIX)
         #-Wno-aggressive-loop-optimizations
         # the next warnings might be useful sometimes, but usually they generate too much noise
         #-Werror
-
-        # c_master is a C-only branch.
-        -Wdeclaration-after-statement
-        -Wmissing-prototypes
-        -Wnested-externs
-        -Wstrict-prototypes
-        -Wc++-compat
-        -Wold-style-definition
     )
+
+    IF (NOT LUA_COMPILED_AS_HPP)
+        # c_master is a C-only branch.
+        ADD_COMPILE_OPTIONS (
+            -Wdeclaration-after-statement
+            -Wmissing-prototypes
+            -Wnested-externs
+            -Wstrict-prototypes
+            -Wc++-compat
+            -Wold-style-definition
+        )
+    ENDIF ()
 
     OPTION (LUACMSGPACK_DEBUG "Include ltests.h" OFF)
     IF (LUACMSGPACK_DEBUG)
@@ -143,6 +142,8 @@ ENDIF ()
 #-------------------------------------------------------------------------------
 # msgpack-c external dependency
 #-------------------------------------------------------------------------------
+
+# Need to ensure msgpack-c is compiled with -fPIC.
 IF (UNIX)
     SET (CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
 ENDIF ()
@@ -157,7 +158,6 @@ ELSE ()
     SET (MSGPACK_C_32BIT "")
 ENDIF ()
 
-# Need to ensure msgpack-c is compiled with -fPIC.
 include(ExternalProject)
 ExternalProject_Add(msgpack
     PREFIX ${MSGPACK_C}
