@@ -10,7 +10,28 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "lua_cmsgpackver.h"
+#if defined(LUA_COMPILED_AS_HPP)
+#include <limits>
+extern "C++" {
+#endif
+
+#include <lua.h>
+#include <luaconf.h>
+#include <lauxlib.h>
+#if LUA_VERSION_NUM == 504  /* gritLua 5.4 */
+  #include <lgrit_lib.h>
+#elif LUA_VERSION_NUM == 503  /* cfxLua 5.3 */
+  #include <lobject.h>
+  #define LUA_VEC_TYPE LUA_FLOAT_FLOAT
+  typedef float lua_VecF;
+#else
+   #error unsupported Lua version
+#endif
+
+#if defined(LUA_COMPILED_AS_HPP)
+}
+#endif
+
 #include "msgpack/pack.h"
 #include "msgpack/unpack.h"
 #include "msgpack/zone.h"
@@ -21,9 +42,33 @@
   #define LUACMSGPACK_BIT32
 #endif
 
-/* Max tables nesting. */
-#ifndef LUACMSGPACK_MAX_NESTING
-  #define LUACMSGPACK_MAX_NESTING 16
+/* Maximum recursive-depth/table-nesting. */
+#if !defined(MP_MAX_NESTING)
+  #define MP_MAX_NESTING 16
+#endif
+
+/*
+** Threshold for mp_table_is_an_array: If a table has an integer key greater
+** than this value, ensure at least half of the keys within the table have
+** elements to be encoded as an array; this addition is technically not
+** one-to-one with MessagePack.lua.
+*/
+#if !defined(MP_TABLE_CUTOFF)
+  #define MP_TABLE_CUTOFF 16
+#endif
+
+/* Initial intermediate string buffer size */
+#if !defined(MP_BUFFER_INITSIZE)
+  #define MP_BUFFER_INITSIZE 32
+#endif
+
+/*
+** Default chunk msgpack_zone chunk size.
+**
+** @TODO: Experiment with changing this (and other values) based on some input heuristic.
+*/
+#if !defined(MP_ZONE_CHUNK_SIZE)
+  #define MP_ZONE_CHUNK_SIZE 256
 #endif
 
 /*
@@ -43,6 +88,121 @@ typedef struct lua_mpbuffer {
 
 /*
 ** {==================================================================
+** Lua Compatibility Macros
+** ===================================================================
+*/
+
+#ifdef _MSC_VER
+  #define LUACMSGPACK_INLINE __forceinline
+#elif defined(__has_attribute)
+  #if __has_attribute(__always_inline__)
+    #define LUACMSGPACK_INLINE inline __attribute__((__always_inline__))
+  #else
+    #define LUACMSGPACK_INLINE inline
+  #endif
+#else
+  #define LUACMSGPACK_INLINE inline
+#endif
+
+/*
+** When compiling for C++ bundles, include macros for common warnings, e.g.,
+** -Wold-style-cast.
+*/
+#if defined(__cplusplus)
+  #define mp_cast(t, exp) static_cast<t>(exp)
+  #define mp_pcast(t, exp) reinterpret_cast<t>(exp)
+#else
+  #define mp_cast(t, exp) ((t)(exp))
+  #define mp_pcast(t, exp) ((t)(exp))
+#endif
+
+/* Macro for geti/seti. Parameters changed from int to lua_Integer in Lua 53 */
+#if LUA_VERSION_NUM >= 503
+  #define mp_ti(v) v
+#else
+  #define mp_ti(v) mp_cast(int, v)
+#endif
+
+/* Unnecessary & unsafe macro to disable checkstack */
+#if defined(LUACMSGPACK_UNSAFE)
+  #define mp_checkstack(L, sz) ((void)0)
+#else
+  #define mp_checkstack(L, sz) luaL_checkstack((L), (sz), "too many (nested) values in encoded msgpack")
+#endif
+
+/* lua_absindex introduced in Lua 52 */
+#if LUA_VERSION_NUM < 502
+  #define lua_absindex(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : lua_gettop(L) + (i) + 1)
+#endif
+
+/* Relative index utility */
+#define mp_rel_index(idx, n) (((idx) < 0) ? ((idx) - (n)) : (idx))
+
+/* Lua 54 changed the definition of lua_newuserdata */
+#if LUA_VERSION_NUM >= 504
+  #define mp_newuserdata(L, s) lua_newuserdatauv((L), (s), 1)
+#elif LUA_VERSION_NUM >= 501 && LUA_VERSION_NUM <= 503
+  #define mp_newuserdata(L, s) lua_newuserdata((L), (s))
+#else
+  #error unsupported Lua version
+#endif
+
+#if !defined(LUA_NUMTAGS)  /* LUA_VERSION_NUM == 501 */
+  #define LUA_NUMTAGS (LUA_TTHREAD + 1)
+#endif
+
+/* API changed from returning "false" to returning TNIL */
+#if LUA_VERSION_NUM >= 503
+  #define mp_nil_metafield LUA_TNIL
+#else
+  #define mp_nil_metafield 0
+#endif
+
+/* }================================================================== */
+
+/*
+** {==================================================================
+** std::limits
+** ===================================================================
+*/
+
+/* Check if float or double can be an integer without loss of precision */
+#define IS_INT_TYPE_EQUIVALENT(x, t) (!isinf(x) && mp_cast(lua_Number, mp_cast(t, x)) == (x))
+#define IS_INT64_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int64_t)
+#define IS_INT_EQUIVALENT(x) IS_INT_TYPE_EQUIVALENT(x, int)
+
+/* maximum value for size_t */
+#if defined(__cplusplus)
+  #define MP_MAX_SIZET std::numeric_limits<size_t>::max()
+#else
+  #define MP_MAX_SIZET ((size_t)(~(size_t)0))
+#endif
+
+/* maximum size visible for Lua (must be representable in a lua_Integer) */
+#if LUA_VERSION_NUM == 503 || LUA_VERSION_NUM == 504
+  #define MP_MAX_LUAINDEX (sizeof(size_t) < sizeof(lua_Integer) ? MP_MAX_SIZET : mp_cast(size_t, LUA_MAXINTEGER))
+#elif LUA_VERSION_NUM == 501 || LUA_VERSION_NUM == 502
+  #define MP_MAX_LUAINDEX MP_MAX_SIZET
+#else
+  #error unsupported Lua version
+#endif
+
+#if LUA_VERSION_NUM >= 503
+  #define mp_isinteger(L, idx) lua_isinteger((L), (idx))
+#else
+static LUACMSGPACK_INLINE int mp_isinteger(lua_State *L, int idx) {
+  if (LUA_TNUMBER == lua_type(L, idx)) {
+    lua_Number n = lua_tonumber(L, idx);
+    return IS_INT_TYPE_EQUIVALENT(n, lua_Integer);
+  }
+  return 0;
+}
+#endif
+
+/* }================================================================== */
+
+/*
+** {==================================================================
 ** External API
 ** ===================================================================
 */
@@ -59,20 +219,28 @@ typedef struct lua_mpbuffer {
 #define MP_UNPACKING           0x04  /* Deallocate unpacking structures */
 #define MP_EXTERNAL            0x08  /* Userdata */
 
+/* MessagePack.lua: local set_integer = function (integer) */
 #define MP_UNSIGNED_INTEGERS   0x10  /* Encode integers as signed/unsigned values */
-#define MP_NUMBER_AS_INTEGER   0x20  /* */
+
+/* MessagePack.lua: local set_number = function (number)  */
+#define MP_NUMBER_AS_INTEGER   0x20  /* Intended for <= Lua52; detect if a floating point type can be faithfully int-casted */
 #define MP_NUMBER_AS_FLOAT     0x40  /* Encode lua_Numbers as floats (regardless of type) */
 #define MP_NUMBER_AS_DOUBLE    0x80  /* Reserved for inverse-toggling NUMBER_AS_FLOAT */
+
+/* MessagePack.lua: local set_string = function (str) */
 #define MP_STRING_COMPAT       0x100  /* Use raw (V4) for encoding strings */
-#define MP_STRING_BINARY       0x200
+#define MP_STRING_BINARY       0x200  /* Pack strings as blobs, i.e., 0xc4, 0xc5, 0xc6 */
+
+/* MessagePack.lua: local set_array = function (array) */
 #define MP_EMPTY_AS_ARRAY      0x400 /* Empty table encoded as an array. */
 #define MP_ARRAY_AS_MAP        0x800  /* Encode table as <key,value> pairs */
 #define MP_ARRAY_WITH_HOLES    0x1000  /* Encode all tables with positive integer keys as arrays. */
 #define MP_ARRAY_WITHOUT_HOLES 0x2000  /* Only encode contiguous arrays as an array */
 
+/* MessagePack.lua: Compatibility fields */
 #define MP_SMALL_LUA           0x4000 /* Compatibility only */
 #define MP_FULL_64_BITS        0x8000 /* Compatibility only */
-#define MP_LONG_DOUBLE         0x10000 /* */
+#define MP_LONG_DOUBLE         0x10000 /* Compatibility option: Lua is compiled for long doubles */
 #define MP_USE_SENTINEL        0x20000 /* Replacement for nil table keys */
 
 #define MP_MODE (MP_PACKING | MP_UNPACKING | MP_EXTERNAL)
@@ -214,9 +382,6 @@ LUA_API int mp_is_null (lua_State *L, int idx);
 */
 
 #define LUA_MPBUFFER_USERDATA "LUAMPBUFFER"
-#if !defined(LUA_MPBUFFER_INITSIZE)
-  #define LUA_MPBUFFER_INITSIZE 32
-#endif
 
 static LUACMSGPACK_INLINE void *lua_mpbuffer_realloc (lua_State *L, void *target, size_t osize, size_t nsize) {
   void *ud;
@@ -249,7 +414,7 @@ static LUACMSGPACK_INLINE char *lua_mpbuffer_initsize (lua_State *L, lua_mpbuffe
 }
 
 static LUACMSGPACK_INLINE void lua_mpbuffer_init (lua_State *L, lua_mpbuffer *B) {
-  lua_mpbuffer_initsize(L, B, LUA_MPBUFFER_INITSIZE);
+  lua_mpbuffer_initsize(L, B, MP_BUFFER_INITSIZE);
 }
 
 static LUACMSGPACK_INLINE void lua_mpbuffer_free (lua_State *L, lua_mpbuffer *B) {
@@ -468,14 +633,12 @@ static LUACMSGPACK_INLINE void lua_pack_integer (lua_State *L, lua_msgpack *ud, 
 
 static LUACMSGPACK_INLINE void lua_pack_number (lua_State *L, lua_msgpack *ud, int idx) {
 #if LUA_VERSION_NUM >= 503
-  if (lua_isinteger(L, idx))
+  if (lua_isinteger(L, idx) || (ud->flags & MP_NUMBER_AS_INTEGER))
     lua_pack_integer(L, ud, idx);
-  else {
-    if (ud->flags & MP_NUMBER_AS_FLOAT)
-      msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, lua_tonumber(L, idx)));
-    else
-      msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, lua_tonumber(L, idx)));
-  }
+  else if (ud->flags & MP_NUMBER_AS_FLOAT)
+    msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, lua_tonumber(L, idx)));
+  else
+    msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, lua_tonumber(L, idx)));
 #else /* LUA_VERSION_NUM < 503 */
   /*
   ** Earlier versions of Lua have no explicit integer types, therefore detect if
@@ -489,12 +652,10 @@ static LUACMSGPACK_INLINE void lua_pack_number (lua_State *L, lua_msgpack *ud, i
 #endif
     lua_pack_integer(L, ud, idx);
   }
-  else {
-    if (ud->flags & MP_NUMBER_AS_FLOAT)
-      msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, n));
-    else
-      msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, n));
-  }
+  else if (ud->flags & MP_NUMBER_AS_FLOAT)
+    msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, n));
+  else
+    msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, n));
 #endif
 }
 
@@ -524,13 +685,14 @@ static LUACMSGPACK_INLINE void lua_pack_extended_table (lua_State *L, lua_msgpac
   }
 }
 
+/*
+** NOTE from Lua documentation: The Lua value must be a string or a number; otherwise, the function returns NULL. If the
+** value is a number, then lua_tolstring also changes the actual value in the stack to a string. (This change confuses
+** lua_next when lua_tolstring is applied to keys during a table traversal.)
+*/
 static LUACMSGPACK_INLINE void lua_pack_parse_string (lua_State *L, lua_msgpack *ud, int idx) {
   msgpack_packer *pk = &(ud->u.packed.packer);
 
-  /*
-  ** Fallback to empty string if the value at the specified index is not a
-  ** string or its object can be converted into a string.
-  */
   size_t len = 0;
   const char *s = NULL;
   if ((s = lua_tolstring(L, idx, &len)) == NULL) {
@@ -615,12 +777,12 @@ static LUACMSGPACK_INLINE void lua_pack_type_extended (lua_State *L, lua_msgpack
 static LUACMSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int idx, int level) {
   int t = lua_type(L, idx);
 #if defined(LUACMSGPACK_ERROR_NESTING)
-  if (t == LUA_TTABLE && level >= LUACMSGPACK_MAX_NESTING) {
+  if (t == LUA_TTABLE && level >= MP_MAX_NESTING) {
     luaL_error(L, "maximum table nesting depth exceeded");
     return;
   }
 #else
-  if (t == LUA_TTABLE && level == LUACMSGPACK_MAX_NESTING)
+  if (t == LUA_TTABLE && level == MP_MAX_NESTING)
     t = LUA_TNIL;
 #endif
 
