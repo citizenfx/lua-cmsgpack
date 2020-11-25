@@ -13,29 +13,30 @@
 #include <msgpack.h>
 #include <msgpack/sysdep.h>
 
-/*
-** Registry (sub-)table
-**
-** http://lua-users.org/lists/lua-l/2011-12/msg00039.html
-*/
-#if defined(LUACMSGPACK_EXPERIMENTAL) && LUA_VERSION_NUM >= 502
-  /* Registry Table Keys */
-  static int lua_cmsgpack_key = 0;
-  static int lua_cmsgpack_key_flags = 0;
-  static int lua_cmsgpack_key_ext = 0;
-  static int lua_cmsgpack_key_nullref = 0;
+#if defined(LUACMSGPACK_EXPERIMENTAL)
+  #if LUA_VERSION_NUM <= 502
+  typedef int mp_regType; /* Registry Table KeyType */
+  #else
+  typedef lua_Integer mp_regType; /* Registry Table KeyType */
+  #endif
 
-  /* Registry Table Keys */
-  #define LUACMSGPACK_REG ((const char*)(&lua_cmsgpack_key))
-  #define LUACMSGPACK_REG_OPTIONS ((const char*)(&lua_cmsgpack_key_flags))
-  #define LUACMSGPACK_REG_EXT ((const char*)(&lua_cmsgpack_key_ext))
-  #define LUACMSGPACK_REG_NULL ((const char*)(&lua_cmsgpack_key_nullref))
-
-  #define lua_cmsgpack_getfield(L, I, K) lua_rawgetp((L), (I), (K))
-  #define lua_cmsgpack_setfield(L, I, K) lua_rawsetp((L), (I), (K))
-#else
   /* Registry Table Keys */
   #define LUACMSGPACK_REG "lua_cmsgpack"
+
+  /* Registry Subtable Keys */
+  #define LUACMSGPACK_REG_OPTIONS 1
+  #define LUACMSGPACK_REG_EXT 2
+  #define LUACMSGPACK_REG_NULL 3
+
+  #define lua_cmsgpack_getfield(L, I, K) lua_rawgeti((L), (I), (K))
+  #define lua_cmsgpack_setfield(L, I, K) lua_rawseti((L), (I), (K))
+#else
+  typedef const char *mp_regType; /* Registry Table KeyType */
+
+  /* Registry Table Keys */
+  #define LUACMSGPACK_REG "lua_cmsgpack"
+
+  /* Registry Subtable Keys */
   #define LUACMSGPACK_REG_OPTIONS "lua_cmsgpack_flags"
   #define LUACMSGPACK_REG_EXT "lua_cmsgpack_meta"
   #define LUACMSGPACK_REG_NULL "lua_cmsgpack_null"
@@ -45,7 +46,7 @@
 #endif
 
 static int lua_cmsgpack_getsubtable (lua_State *L, int idx, const char *key) {
-  lua_cmsgpack_getfield(L, idx, key);
+  lua_getfield(L, idx, key);
   if (lua_istable(L, -1))
     return 1; /* table already there */
   else {
@@ -53,13 +54,13 @@ static int lua_cmsgpack_getsubtable (lua_State *L, int idx, const char *key) {
     idx = lua_absindex(L, idx);
     lua_newtable(L);
     lua_pushvalue(L, -1); /* copy to be left at top */
-    lua_cmsgpack_setfield(L, idx, key); /* assign new table to field */
+    lua_setfield(L, idx, key); /* assign new table to field */
     return 0; /* false, because did not find table there */
   }
 }
 
 /* Fetch a lua_Int from the registry table */
-static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key, lua_Integer opt) {
+static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, mp_regType key, lua_Integer opt) {
   lua_Integer result;
 
   lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
@@ -70,7 +71,7 @@ static LUACMSGPACK_INLINE lua_Integer mp_getregi (lua_State *L, const char *key,
 }
 
 /* Push a integer into the registry table at the specified key */
-static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, const char *key, lua_Integer value) {
+static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, mp_regType key, lua_Integer value) {
   lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
   lua_pushinteger(L, value);
   lua_cmsgpack_setfield(L, -2, key);  /* pops value */
@@ -78,10 +79,16 @@ static LUACMSGPACK_INLINE void mp_setregi (lua_State *L, const char *key, lua_In
 }
 
 /* Get a subtable within the registry table */
-static LUACMSGPACK_INLINE void mp_getregt (lua_State *L, const char *name) {
+static LUACMSGPACK_INLINE void mp_getregt (lua_State *L, mp_regType name) {
   lua_cmsgpack_getsubtable(L, LUA_REGISTRYINDEX, LUACMSGPACK_REG);
-  if (!lua_cmsgpack_getsubtable(L, -1, name)) {
-    /* initialize it */
+  lua_cmsgpack_getfield(L, -1, name);
+  if (!lua_istable(L, -1)) {  /* initialize it */
+    int idx = 0;
+    lua_pop(L, 1); /* remove previous result */
+    idx = lua_absindex(L, -1);
+    lua_newtable(L);
+    lua_pushvalue(L, -1); /* copy to be left at top */
+    lua_cmsgpack_setfield(L, idx, name); /* assign new table to field */
   }
 
 #if LUA_VERSION_NUM < 503
