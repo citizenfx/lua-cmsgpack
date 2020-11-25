@@ -110,8 +110,10 @@ typedef struct lua_mpbuffer {
 /* Macro for geti/seti. Parameters changed from int to lua_Integer in Lua 53 */
 #if LUA_VERSION_NUM >= 503
   #define mp_ti(v) v
+  #define mp_rawgeti(L, I, K) lua_rawgeti((L), (I), (K))
 #else
   #define mp_ti(v) mp_cast(int, v)
+  #define mp_rawgeti(L, I, K) (lua_rawgeti((L), (I), (K)), lua_type((L), -1))
 #endif
 
 /* Unnecessary & unsafe macro to disable checkstack */
