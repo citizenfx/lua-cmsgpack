@@ -48,6 +48,8 @@ IF (UNIX)
             #-Wno-gnu-zero-variadic-macro-arguments
             #-Wno-covered-switch-default
             #-Wno-reserved-id-macro
+            #-Wno-c++98-compat
+            #-Wno-c++98-compat-pedantic
         )
     ELSEIF (CMAKE_COMPILER_IS_GNUCC)
         ADD_COMPILE_OPTIONS (

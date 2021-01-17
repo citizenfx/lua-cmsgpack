@@ -15,6 +15,10 @@
   #define LUAMOD_API LUALIB_API
 #endif
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /*
 ** pack(...): receives any number of arguments and MessagePacks their values.
 ** Returning the encoded string.
@@ -198,11 +202,10 @@ LUALIB_API int mp_get_type_extension (lua_State *L);
 LUALIB_API int mp_setoption (lua_State *L);
 LUALIB_API int mp_getoption (lua_State *L);
 
-#if defined(LUA_COMPILED_AS_HPP)
-extern "C" {
-#endif
-LUAMOD_API int luaopen_cmsgpack (lua_State *L);
-#if defined(LUA_COMPILED_AS_HPP)
+#define LUACMSGPACK_LIBNAME "msgpack"
+LUAMOD_API int (luaopen_cmsgpack) (lua_State *L);
+
+#if defined(__cplusplus)
 }
 #endif
 
