@@ -215,7 +215,7 @@ void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int lev
 /* Long-formed unpacking to avoid any headaches */
 static int mp_decode_vector (lua_State *L, msgpack_object_ext *ext) {
   union { lua_VecF f; lua_VecI i; } mem;  /* Following msgpack/pack_template.h */
-  lua_Float4 v = { .x = 0, .y = 0, .z = 0, .w = 0 };
+  lua_Float4 v;
 
   switch (ext->type) {
     case MSGPACK_EXT_VECTOR2:
