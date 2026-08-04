@@ -846,28 +846,7 @@ static LUA_MSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
 #else
   #error unsupported Lua version
 #endif
-    case LUA_TLIGHTUSERDATA: {
-#if LUA_VERSION_NUM == 501
-      if (mp_is_null(L, idx))
-        msgpack_pack_nil(&(ud->u.packed.packer));
-      else
-#endif
-      /*
-      ** @TODO: Improve how light userdata is managed. Ideally, there will be
-      **       API function lua_msgpack_type_extension( ..., lua_CFunction,
-      **       lua_CFunction) that handles the serialization of C pointers.
-      */
-      if (!mp_encode_registered_lua_type(L, ud, idx, t)) {
-        msgpack_packer *pk = &(ud->u.packed.packer);
-        const void *userdata = lua_touserdata(L, idx);
-#if defined(LUA_MSGPACK_BIT32)
-        msgpack_pack_uint32(pk, mp_cast(uint32_t, mp_pcast(uintptr_t, userdata)));
-#else
-        msgpack_pack_uint64(pk, mp_cast(uint64_t, mp_pcast(uintptr_t, userdata)));
-#endif
-      }
-      break;
-    }
+    case LUA_TLIGHTUSERDATA:
     case LUA_TUSERDATA:
     case LUA_TTHREAD:
     default: /* Otherwise, using a type unknown to vanilla Lua */
