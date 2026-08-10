@@ -50,6 +50,9 @@ static void mp_getregt (lua_State *L, const char *name) {
 
 static int typetoindex (lua_State *L, const char *name) {
   int i, found = -1;
+  if (name == NULL) {
+    return -1;
+  }
 #if defined(LUA_NUMTAGS)  /* Ensure the type name exists ... */
   for (i = 0; i < LUA_NUMTAGS; ++i) {
 #else
