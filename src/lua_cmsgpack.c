@@ -127,6 +127,7 @@ int mp_parse_vector (lua_State *L, int idx, lua_Float4 *v) {
 
 int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags, size_t *array_length) {
   size_t count = 0, max = 0, arraylen = 0;
+  luaL_checktype(L, idx, LUA_TTABLE);
   const int stacktop = lua_gettop(L);
   const int i_idx = mp_rel_index(idx, 1);
 
@@ -174,6 +175,7 @@ int mp_table_is_an_array (lua_State *L, int idx, lua_Integer flags, size_t *arra
 
 void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud, int idx, int level, size_t array_length) {
   size_t j;
+  luaL_checktype(L, idx, LUA_TTABLE);
 #if LUA_VERSION_NUM < 503
   const int i_idx = mp_rel_index(idx, 1);
 #endif
@@ -194,6 +196,7 @@ void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud, int idx, int l
 
 void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int level) {
   size_t len = 0;
+  luaL_checktype(L, idx, LUA_TTABLE);
   const int i_idx = mp_rel_index(idx, 1);
 
   /*
