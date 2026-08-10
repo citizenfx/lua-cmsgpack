@@ -262,25 +262,6 @@ static LUA_MSGPACK_INLINE void lua_mpbuffer_free (lua_State *L, lua_mpbuffer *B)
   B->L = mp_nullptr;  /* Invalidate the cache */
 }
 
-/* Generic append data to buffer function. */
-static LUA_MSGPACK_INLINE int lua_mpbuffer_append (lua_State *L, void *data, const char *s, size_t len) {
-  lua_mpbuffer *B = mp_pcast(lua_mpbuffer *, data);
-  memcpy(lua_mpbuffer_prepare(L, B, len), s, len);  /* copy content */
-  B->n += len;
-  return 0;  /* LUA_OK */
-}
-
-/*
-** Interface function required by msgpack-c, forced into using a cached
-** lua_State pointer.
-*/
-static int lua_mpbuffer_iappend (void *data, const char *s, size_t len) {
-  lua_mpbuffer *B = mp_pcast(lua_mpbuffer *, data);
-  memcpy(lua_mpbuffer_prepare(B->L, B, len), s, len);  /* copy content */
-  B->n += len;
-  return 0;  /* LUA_OK */
-}
-
 /* }================================================================== */
 
 /*
@@ -303,10 +284,8 @@ static int lua_mpbuffer_iappend (void *data, const char *s, size_t len) {
 	#define LUA_MP_API extern
 #endif
 
-#define MP_OPEN                0x01  /* Userdata data resources are alive. */
-#define MP_PACKING             0x02  /* Deallocate packing structures */
-#define MP_UNPACKING           0x04  /* Deallocate unpacking structures */
-#define MP_EXTERNAL            0x08  /* Userdata */
+#define MP_PACKING             0x01  /* Deallocate packing structures */
+#define MP_UNPACKING           0x02  /* Deallocate unpacking structures */
 
 /* MessagePack.lua: local set_integer = function (integer) */
 #define MP_UNSIGNED_INTEGERS   0x10  /* Encode integers as signed/unsigned values */
@@ -335,8 +314,8 @@ static int lua_mpbuffer_iappend (void *data, const char *s, size_t len) {
 #define MP_USE_SENTINEL        0x20000 /* Replacement for nil table keys */
 #define MP_IGNORE_INVALID      0x40000 /* Ignore invalid types during encoding instead of throwing an error */
 
-#define MP_MODE (MP_PACKING | MP_UNPACKING | MP_EXTERNAL)
-#define MP_MASK_RUNTIME (MP_OPEN | MP_MODE)  /* flags that can't be setoption'd */
+#define MP_MODE (MP_PACKING | MP_UNPACKING)
+#define MP_MASK_RUNTIME (MP_MODE)  /* flags that can't be setoption'd */
 #define MP_MASK_ARRAY (MP_ARRAY_AS_MAP | MP_ARRAY_WITH_HOLES | MP_ARRAY_WITHOUT_HOLES)
 #define MP_MASK_STRING (MP_STRING_COMPAT | MP_STRING_BINARY)
 #define MP_MASK_NUMBER (MP_NUMBER_AS_INTEGER | MP_NUMBER_AS_FLOAT | MP_NUMBER_AS_DOUBLE)
@@ -520,28 +499,33 @@ LUA_MP_API void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud, int
 /* Encode the table at the specified stack index as a <key, value> array. */
 LUA_MP_API void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int level);
 
+static LUA_MSGPACK_INLINE msgpack_packer* mp_get_packer(lua_State *L, lua_msgpack *ud) {
+  ud->u.packed.buffer.L = L;
+  return &ud->u.packed.packer;
+}
+
 #define lua_msgpack_op(NAME, PACKER)                                    \
   static LUA_MSGPACK_INLINE void(NAME)(lua_State *L, lua_msgpack *ud) { \
     ((void)(L));                                                        \
-    PACKER(&(ud->u.packed.packer));                                     \
+    PACKER(mp_get_packer(L, ud));                                     \
   }
 
 #define lua_msgpack_number_func(NAME, PACKER, TYPE)                              \
   static LUA_MSGPACK_INLINE void(NAME)(lua_State *L, lua_msgpack *ud, int idx) { \
-    PACKER(&(ud->u.packed.packer), mp_cast(TYPE, lua_tonumber(L, idx)));         \
+    PACKER(mp_get_packer(L, ud), mp_cast(TYPE, lua_tonumber(L, idx)));         \
   }
 
 #define lua_msgpack_int_func(NAME, PACKER, TYPE)                                 \
   static LUA_MSGPACK_INLINE void(NAME)(lua_State *L, lua_msgpack *ud, int idx) { \
-    PACKER(&(ud->u.packed.packer), mp_cast(TYPE, lua_tointeger(L, idx)));        \
+    PACKER(mp_get_packer(L, ud), mp_cast(TYPE, lua_tointeger(L, idx)));        \
   }
 
 #define lua_msgpack_str_func(NAME, LEN, BODY)                                    \
   static LUA_MSGPACK_INLINE void(NAME)(lua_State *L, lua_msgpack *ud, int idx) { \
     size_t len = 0;                                                              \
     const char *s = lua_tolstring(L, idx, &len);                                 \
-    LEN(&(ud->u.packed.packer), len);                                            \
-    BODY(&(ud->u.packed.packer), s, len);                                        \
+    LEN(mp_get_packer(L, ud), len);                                            \
+    BODY(mp_get_packer(L, ud), s, len);                                        \
   }
 
 lua_msgpack_int_func(lua_pack_char, msgpack_pack_char, char)
@@ -607,13 +591,13 @@ static LUA_MSGPACK_INLINE void lua_pack_map (lua_State *L, lua_msgpack *ud, int 
 
 static LUA_MSGPACK_INLINE void lua_pack_boolean (lua_State *L, lua_msgpack *ud, int idx) {
   if (lua_toboolean(L, idx))
-    msgpack_pack_true(&(ud->u.packed.packer));
+    msgpack_pack_true(mp_get_packer(L, ud));
   else
-    msgpack_pack_false(&(ud->u.packed.packer));
+    msgpack_pack_false(mp_get_packer(L, ud));
 }
 
 static LUA_MSGPACK_INLINE void lua_pack_integer (lua_State *L, lua_msgpack *ud, int idx) {
-  msgpack_packer *pk = &(ud->u.packed.packer);
+  msgpack_packer *pk = mp_get_packer(L, ud);
 #if LUA_VERSION_NUM >= 503
   #if defined(LUA_MSGPACK_BIT32)
   if (ud->flags & MP_UNSIGNED_INTEGERS)
@@ -646,9 +630,9 @@ static LUA_MSGPACK_INLINE void lua_pack_number (lua_State *L, lua_msgpack *ud, i
   if (lua_isinteger(L, idx) || (ud->flags & MP_NUMBER_AS_INTEGER))
     lua_pack_integer(L, ud, idx);
   else if (ud->flags & MP_NUMBER_AS_FLOAT)
-    msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, lua_tonumber(L, idx)));
+    msgpack_pack_float(mp_get_packer(L, ud), mp_cast(float, lua_tonumber(L, idx)));
   else
-    msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, lua_tonumber(L, idx)));
+    msgpack_pack_double(mp_get_packer(L, ud), mp_cast(double, lua_tonumber(L, idx)));
 #else /* LUA_VERSION_NUM < 503 */
   /*
   ** Earlier versions of Lua have no explicit integer types, therefore detect if
@@ -663,9 +647,9 @@ static LUA_MSGPACK_INLINE void lua_pack_number (lua_State *L, lua_msgpack *ud, i
     lua_pack_integer(L, ud, idx);
   }
   else if (ud->flags & MP_NUMBER_AS_FLOAT)
-    msgpack_pack_float(&(ud->u.packed.packer), mp_cast(float, n));
+    msgpack_pack_float(mp_get_packer(L, ud), mp_cast(float, n));
   else
-    msgpack_pack_double(&(ud->u.packed.packer), mp_cast(double, n));
+    msgpack_pack_double(mp_get_packer(L, ud), mp_cast(double, n));
 #endif
 }
 
@@ -709,7 +693,7 @@ static LUA_MSGPACK_INLINE void lua_pack_extended_table (lua_State *L, lua_msgpac
 ** traversal.)
 */
 static LUA_MSGPACK_INLINE void lua_pack_parse_string (lua_State *L, lua_msgpack *ud, int idx) {
-  msgpack_packer *pk = &(ud->u.packed.packer);
+  msgpack_packer *pk = mp_get_packer(L, ud);
 
   size_t len = 0;
   const char *s = mp_nullptr;
@@ -740,7 +724,7 @@ static LUA_MSGPACK_INLINE void lua_pack_parse_string (lua_State *L, lua_msgpack 
 static void lua_pack_vector (lua_State *L, lua_msgpack *ud, int idx) {
   union { lua_VecF f; lua_VecI i; } mem;  /* Following msgpack/pack_template.h */
   unsigned char buf[4 * sizeof(lua_VecF)];
-  msgpack_packer *pk = &(ud->u.packed.packer);
+  msgpack_packer *pk = mp_get_packer(L, ud);
 
   lua_Float4 v;
   int type = 0, size = 0;
@@ -781,7 +765,7 @@ static LUA_MSGPACK_INLINE void lua_pack_type_extended (lua_State *L, lua_msgpack
   if ((type = mp_ext_type(L, idx)) != EXT_INVALID) {
     if (!mp_encode_registered_ext_type(L, ud, idx, mp_cast(int8_t, type))) {
       if ((ud->flags & MP_IGNORE_INVALID)) {
-        msgpack_pack_nil(&ud->u.packed.packer);
+        msgpack_pack_nil(mp_get_packer(L, ud));
         return;
       }
 
@@ -798,7 +782,7 @@ static LUA_MSGPACK_INLINE void lua_pack_type_extended (lua_State *L, lua_msgpack
     /* do nothing; type has been packed as an extension */
   }
   else if ((ud->flags & MP_IGNORE_INVALID))
-    msgpack_pack_nil(&ud->u.packed.packer);
+    msgpack_pack_nil(mp_get_packer(L, ud));
   else {
     luaL_error(L, "type <%s> cannot be msgpack'd", lua_typename(L, t));
   }
@@ -817,7 +801,7 @@ static LUA_MSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
 #endif
 
   switch (t) {
-    case LUA_TNIL: msgpack_pack_nil(&(ud->u.packed.packer)); break;
+    case LUA_TNIL: msgpack_pack_nil(mp_get_packer(L, ud)); break;
     case LUA_TBOOLEAN: lua_pack_boolean(L, ud, idx); break;
     case LUA_TNUMBER: lua_pack_number(L, ud, idx); break;
     case LUA_TSTRING: lua_pack_parse_string(L, ud, idx); break;
@@ -825,7 +809,7 @@ static LUA_MSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
     case LUA_TFUNCTION: {
 #if LUA_VERSION_NUM > 501
       if (mp_is_null(L, idx)) {
-        msgpack_pack_nil(&(ud->u.packed.packer));
+        msgpack_pack_nil(mp_get_packer(L, ud));
         break;
       }
 #endif

@@ -175,7 +175,7 @@ void mp_encode_lua_table_as_array (lua_State *L, lua_msgpack *ud, int idx, int l
   const int i_idx = mp_rel_index(idx, 1);
 #endif
 
-  msgpack_pack_array(&ud->u.packed.packer, array_length);
+  msgpack_pack_array(mp_get_packer(L, ud), array_length);
   mp_checkstack(L, 1);
   for (j = 1; j <= array_length; j++) {
 #if LUA_VERSION_NUM >= 503
@@ -205,7 +205,7 @@ void mp_encode_lua_table_as_map (lua_State *L, lua_msgpack *ud, int idx, int lev
     lua_pop(L, 1);  /* remove value, keep key for next iteration. */
   }
 
-  msgpack_pack_map(&ud->u.packed.packer, len);
+  msgpack_pack_map(mp_get_packer(L, ud), len);
   lua_pushnil(L);
   while (lua_next(L, i_idx)) {  /* lua_tolstring caveats apply here. */
     lua_msgpack_encode(L, ud, -2, level + 1);  /* Encode Key */
@@ -399,6 +399,18 @@ static int mp_decode_to_lua_type (lua_State *L, msgpack_object *obj, lua_Integer
   return 1;
 }
 
+#define mp_is_packing(ud) ((ud->flags & MP_MODE) == MP_PACKING)
+
+/* Generic append data to buffer function. */
+static LUA_MSGPACK_INLINE int mp_append (lua_State *L, lua_msgpack * ud, const char *s, size_t len) {
+  if (!mp_is_packing(ud))
+    luaL_error(L, "invalid packer");
+  lua_mpbuffer* buff = &ud->u.packed.buffer;
+  memcpy(lua_mpbuffer_prepare(L, buff, len), s, len);  /* copy content */
+  buff->n += len;
+  return 0;  /* LUA_OK */
+}
+
 /* }================================================================== */
 
 /*
@@ -440,9 +452,9 @@ int mp_encode_ext_metatable (lua_State *L, lua_msgpack *ud, int idx, int8_t ext_
     size_t len = 0;
     const char *s = lua_tolstring(L, -2, &len);
     if (lua_toboolean(L, -1))
-      lua_mpbuffer_append(L, &ud->u.packed.buffer, s, len);
+      mp_append(L, ud, s, len);
     else if (has_ext) {
-      msgpack_packer *pk = &(ud->u.packed.packer);
+      msgpack_packer *pk = mp_get_packer(L, ud);
       msgpack_pack_ext(pk, len, ext_id);
       msgpack_pack_ext_body(pk, s, len);
     }
@@ -519,9 +531,9 @@ int mp_encode_registered_ext_type (lua_State *L, lua_msgpack *ud, int idx, int8_
 
           /* Second, and optional, return value denotes a custom encoding */
           if (lua_toboolean(L, -1))
-            lua_mpbuffer_append(L, &ud->u.packed.buffer, s, len);
+            mp_append(L, ud, s, len);
           else {
-            msgpack_packer *pk = &(ud->u.packed.packer);
+            msgpack_packer *pk = mp_get_packer(L, ud);
             msgpack_pack_ext(pk, len, ext_id);
             msgpack_pack_ext_body(pk, s, len);
           }
@@ -572,12 +584,22 @@ int mp_encode_registered_lua_type (lua_State *L, lua_msgpack *ud, int idx, int t
   return 0;
 }
 
+/*
+** Interface function required by msgpack-c, forced into using a cached
+** lua_State pointer.
+*/
+static int mp_iappend (void *data, const char *s, size_t len) {
+  lua_msgpack* ud = mp_pcast(lua_msgpack *, data);
+  return mp_append(ud->u.packed.buffer.L, ud, s, len);
+}
+
+
 lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
   lua_msgpack *ud = mp_nullptr;
   lua_Integer mode, options;
 
   mode = flags & MP_MODE;
-  if (mode != MP_PACKING && mode != MP_UNPACKING && mode != MP_EXTERNAL) {
+  if (mode != MP_PACKING && mode != MP_UNPACKING) {
     luaL_error(L, "invalid msgpack flags: %d\n", flags);
     return mp_nullptr;
   }
@@ -587,9 +609,9 @@ lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
 
   /* Create packer/unpacker */
   ud = mp_pcast(lua_msgpack *, mp_newuserdata(L, sizeof(lua_msgpack)));
-  if (mode == MP_PACKING || mode == MP_EXTERNAL) {
+  if (mode == MP_PACKING) {
     lua_mpbuffer_init(L, &ud->u.packed.buffer);
-    msgpack_packer_init(&ud->u.packed.packer, &ud->u.packed.buffer, lua_mpbuffer_iappend);
+    msgpack_packer_init(mp_get_packer(L, ud), ud, mp_iappend);
   }
   else if (mode == MP_UNPACKING) {
     if (!msgpack_zone_init(&ud->u.unpacked.zone, MP_ZONE_CHUNK_SIZE)) {
@@ -601,7 +623,7 @@ lua_msgpack *lua_msgpack_create (lua_State *L, lua_Integer flags) {
     return mp_nullptr;
   }
 
-  ud->flags = MP_OPEN | mode | (options & ~MP_MASK_RUNTIME);
+  ud->flags = mode | (options & ~MP_MASK_RUNTIME);
   luaL_getmetatable(L, LUA_MSGPACK_USERDATA);
   lua_setmetatable(L, -2);
   return ud;
@@ -612,8 +634,8 @@ int lua_msgpack_destroy (lua_State *L, int idx, lua_msgpack *ud) {
     ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, idx, LUA_MSGPACK_USERDATA));
   }
 
-  if ((ud->flags & MP_OPEN)) {
-    if ((ud->flags & MP_PACKING) || (ud->flags & MP_EXTERNAL))
+  if (ud->flags & MP_MODE) {
+    if (ud->flags & MP_PACKING)
       lua_mpbuffer_free(L, &ud->u.packed.buffer);
     else if (ud->flags & MP_UNPACKING)
       msgpack_zone_destroy(&ud->u.unpacked.zone);
@@ -722,14 +744,13 @@ void mp_replace_null (lua_State *L) {
 ** Userdata API
 ** ===================================================================
 */
-#define _opext(ud) ((ud->flags & (MP_OPEN | MP_EXTERNAL)) == (MP_OPEN | MP_EXTERNAL))
 
 #define lua_msgpack_template(INPUT)                                                       \
   int i = 0, nargs;                                                                       \
   lua_msgpack *ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, 1, LUA_MSGPACK_USERDATA)); \
   if ((nargs = lua_gettop(L)) < (INPUT))                                                  \
     return luaL_argerror(L, 0, "MessagePack pack needs input");                           \
-  else if (ud == mp_nullptr || !_opext(ud))                                               \
+  else if (ud == mp_nullptr || !mp_is_packing(ud))                                               \
     return luaL_error(L, "invalid packer UD");
 
 #define lua_msgpack_function_op(NAME, PACKER) \
@@ -874,7 +895,7 @@ static const luaL_Reg packers[] = {
 
 static int packed_len (lua_State *L) {
   lua_msgpack *ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, 1, LUA_MSGPACK_USERDATA));
-  if (ud && _opext(ud))
+  if (ud && mp_is_packing(ud))
     lua_pushinteger(L, mp_cast(lua_Integer, ud->u.packed.buffer.n));
   else
     lua_pushinteger(L, 0);
@@ -883,14 +904,13 @@ static int packed_len (lua_State *L) {
 
 static int packed_buffer_append (lua_State *L) {
   lua_msgpack *ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, 1, LUA_MSGPACK_USERDATA));
-  if (ud && _opext(ud)) {
+  if (ud && mp_is_packing(ud)) {
     int i;
-    lua_mpbuffer *buffer = &ud->u.packed.buffer;
     for (i = 2; i <= lua_gettop(L); ++i) {
       size_t len = 0;
       const char *s = lua_tolstring(L, i, &len);
       if (s != mp_nullptr)
-        lua_mpbuffer_append(L, buffer, s, len);
+        mp_append(L, ud, s, len);
     }
   }
   return 0;
@@ -899,7 +919,7 @@ static int packed_buffer_append (lua_State *L) {
 static int packed_encode (lua_State *L) {
   int i;
   lua_msgpack *ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, 1, LUA_MSGPACK_USERDATA));
-  if (ud && _opext(ud)) {
+  if (ud && mp_is_packing(ud)) {
     for (i = 2; i <= lua_gettop(L); ++i)
       lua_msgpack_encode(L, ud, i, 0);
   }
@@ -908,7 +928,7 @@ static int packed_encode (lua_State *L) {
 
 static int packed_tostring (lua_State *L) {
   lua_msgpack *ud = mp_pcast(lua_msgpack *, luaL_checkudata(L, 1, LUA_MSGPACK_USERDATA));
-  if (ud && _opext(ud)) {
+  if (ud && mp_is_packing(ud)) {
     const lua_mpbuffer *buffer = &ud->u.packed.buffer;
     lua_pushlstring(L, buffer->b, buffer->n);
     return 1;
@@ -974,7 +994,7 @@ LUALIB_API int mp_null (lua_State *L) {
 }
 
 LUALIB_API int mp_packer_new (lua_State *L) {
-  lua_msgpack_create(L, MP_EXTERNAL);
+  lua_msgpack_create(L, MP_PACKING);
   return 1;
 }
 
@@ -1007,7 +1027,7 @@ LUALIB_API int mp_pack_args (lua_State *L) {
   if ((ud = lua_msgpack_create(L, MP_PACKING)) == mp_nullptr)
     return luaL_error(L, "could not allocate packer UD");
 
-  msgpack_pack_array(&ud->u.packed.packer, mp_cast(size_t, top));
+  msgpack_pack_array(mp_get_packer(L, ud), mp_cast(size_t, top));
   for (i = 1; i <= top; ++i) {
     lua_msgpack_encode(L, ud, i, 0);
   }
