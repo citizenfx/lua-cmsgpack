@@ -17,15 +17,7 @@ extern "C++" {
 #include <lua.h>
 #include <luaconf.h>
 #include <lauxlib.h>
-#if LUA_VERSION_NUM == 504  /* gritLua 5.4 */
-  #include <lgrit_lib.h>
-#elif LUA_VERSION_NUM == 503  /* cfxLua 5.3 */
-  #include <lobject.h>
-  #define LUA_VEC_TYPE LUA_FLOAT_FLOAT
-  typedef float lua_VecF;
-#else
-   #error unsupported Lua version
-#endif
+#include <lgrit_lib.h>
 
 #if defined(LUA_COMPILED_AS_HPP)
 }
@@ -108,36 +100,15 @@ extern "C++" {
 #endif
 
 /* Macro for geti/seti. Parameters changed from int to lua_Integer in Lua 53 */
-#if LUA_VERSION_NUM >= 503
-  #define mp_ti(v) v
-  #define mp_rawgeti(L, I, K) lua_rawgeti((L), (I), (K))
-  #define mp_getfield(L, I, K) lua_getfield((L), (I), (K))
-#else
-  #define mp_ti(v) mp_cast(int, v)
-  #define mp_rawgeti(L, I, K) (lua_rawgeti((L), (I), (K)), lua_type((L), -1))
-  #define mp_getfield(L, I, K) (lua_getfield((L), (I), (K)), lua_type((L), -1))
-#endif
-
-/* lua_absindex introduced in Lua 52 */
-#if LUA_VERSION_NUM < 502
-  #define lua_absindex(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : lua_gettop(L) + (i) + 1)
-#endif
+#define mp_ti(v) v
+#define mp_rawgeti(L, I, K) lua_rawgeti((L), (I), (K))
+#define mp_getfield(L, I, K) lua_getfield((L), (I), (K))
 
 /* Lua 54 changed the definition of lua_newuserdata */
-#if LUA_VERSION_NUM >= 504
-  #define mp_newuserdata(L, s) lua_newuserdatauv((L), (s), 0)
-#elif LUA_VERSION_NUM >= 501 && LUA_VERSION_NUM <= 503
-  #define mp_newuserdata(L, s) lua_newuserdata((L), (s))
-#else
-  #error unsupported Lua version
-#endif
+#define mp_newuserdata(L, s) lua_newuserdatauv((L), (s), 0)
 
 /* API changed from returning "false" to returning TNIL */
-#if LUA_VERSION_NUM >= 503
-  #define mp_nil_metafield LUA_TNIL
-#else
-  #define mp_nil_metafield 0
-#endif
+#define mp_nil_metafield LUA_TNIL
 
 /* Unnecessary & unsafe macro to disable checkstack */
 #if defined(LUA_MSGPACK_UNSAFE)
@@ -171,26 +142,10 @@ extern "C++" {
 #endif
 
 /* maximum size visible for Lua (must be representable in a lua_Integer) */
-#if LUA_VERSION_NUM == 503 || LUA_VERSION_NUM == 504
-  #define MP_MAX_LUAINDEX (sizeof(size_t) < sizeof(lua_Integer) ? MP_MAX_SIZET : mp_cast(size_t, LUA_MAXINTEGER))
-#elif LUA_VERSION_NUM == 501 || LUA_VERSION_NUM == 502
-  #define MP_MAX_LUAINDEX MP_MAX_SIZET
-#else
-  #error unsupported Lua version
-#endif
+#define MP_MAX_LUAINDEX (sizeof(size_t) < sizeof(lua_Integer) ? MP_MAX_SIZET : mp_cast(size_t, LUA_MAXINTEGER))
 
 /* lua_Integer supported introduced in 53 */
-#if LUA_VERSION_NUM >= 503
-  #define mp_isinteger(L, idx) lua_isinteger((L), (idx))
-#else
-static LUA_MSGPACK_INLINE int mp_isinteger(lua_State *L, int idx) {
-  if (LUA_TNUMBER == lua_type(L, idx)) {
-    lua_Number n = lua_tonumber(L, idx);
-    return IS_INT_TYPE_EQUIVALENT(n, lua_Integer);
-  }
-  return 0;
-}
-#endif
+#define mp_isinteger(L, idx) lua_isinteger((L), (idx))
 
 /* }================================================================== */
 
@@ -577,11 +532,7 @@ lua_msgpack_str_func(lua_pack_bin, msgpack_pack_bin, msgpack_pack_bin_body)
 static LUA_MSGPACK_INLINE void lua_pack_array (lua_State *L, lua_msgpack *ud, int idx, int level) {
   ((void)level);
   mp_encode_lua_table_as_array(L, ud, idx, level,
-#if LUA_VERSION_NUM < 502
-    mp_cast(size_t, lua_objlen(L, -1))
-#else
     mp_cast(size_t, lua_rawlen(L, -1))
-#endif
   );
 }
 
@@ -598,7 +549,6 @@ static LUA_MSGPACK_INLINE void lua_pack_boolean (lua_State *L, lua_msgpack *ud, 
 
 static LUA_MSGPACK_INLINE void lua_pack_integer (lua_State *L, lua_msgpack *ud, int idx) {
   msgpack_packer *pk = mp_get_packer(L, ud);
-#if LUA_VERSION_NUM >= 503
   #if defined(LUA_MSGPACK_BIT32)
   if (ud->flags & MP_UNSIGNED_INTEGERS)
     msgpack_pack_int32(pk, mp_cast(int32_t, lua_tointeger(L, idx)));
@@ -610,47 +560,15 @@ static LUA_MSGPACK_INLINE void lua_pack_integer (lua_State *L, lua_msgpack *ud, 
   else
     msgpack_pack_signed_int64(pk, mp_cast(int64_t, lua_tointeger(L, idx)));
   #endif
-#else
-  #if defined(LUA_MSGPACK_BIT32)
-  if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_int32(pk, mp_cast(int32_t, lua_tonumber(L, idx)));
-  else
-    msgpack_pack_signed_int32(pk, mp_cast(int32_t, lua_tonumber(L, idx)));
-  #else
-  if (ud->flags & MP_UNSIGNED_INTEGERS)
-    msgpack_pack_int64(pk, mp_cast(int64_t, lua_tonumber(L, idx)));
-  else
-    msgpack_pack_signed_int64(pk, mp_cast(int64_t, lua_tonumber(L, idx)));
-  #endif
-#endif
 }
 
 static LUA_MSGPACK_INLINE void lua_pack_number (lua_State *L, lua_msgpack *ud, int idx) {
-#if LUA_VERSION_NUM >= 503
   if (lua_isinteger(L, idx) || (ud->flags & MP_NUMBER_AS_INTEGER))
     lua_pack_integer(L, ud, idx);
   else if (ud->flags & MP_NUMBER_AS_FLOAT)
     msgpack_pack_float(mp_get_packer(L, ud), mp_cast(float, lua_tonumber(L, idx)));
   else
     msgpack_pack_double(mp_get_packer(L, ud), mp_cast(double, lua_tonumber(L, idx)));
-#else /* LUA_VERSION_NUM < 503 */
-  /*
-  ** Earlier versions of Lua have no explicit integer types, therefore detect if
-  ** the floating type can be faithfully casted to an int.
-  */
-  lua_Number n = lua_tonumber(L, idx);
-#if defined(LUA_MSGPACK_BIT32)
-  if (IS_INT_EQUIVALENT(n) || (ud->flags & MP_NUMBER_AS_INTEGER)) {
-#else
-  if (IS_INT64_EQUIVALENT(n) || (ud->flags & MP_NUMBER_AS_INTEGER)) {
-#endif
-    lua_pack_integer(L, ud, idx);
-  }
-  else if (ud->flags & MP_NUMBER_AS_FLOAT)
-    msgpack_pack_float(mp_get_packer(L, ud), mp_cast(float, n));
-  else
-    msgpack_pack_double(mp_get_packer(L, ud), mp_cast(double, n));
-#endif
 }
 
 static LUA_MSGPACK_INLINE void lua_pack_table (lua_State *L, lua_msgpack *ud, int idx, int level) {
@@ -807,29 +725,16 @@ static LUA_MSGPACK_INLINE void lua_pack_any (lua_State *L, lua_msgpack *ud, int 
     case LUA_TSTRING: lua_pack_parse_string(L, ud, idx); break;
     case LUA_TTABLE: lua_pack_extended_table(L, ud, idx, level); break;
     case LUA_TFUNCTION: {
-#if LUA_VERSION_NUM > 501
       if (mp_is_null(L, idx)) {
         msgpack_pack_nil(mp_get_packer(L, ud));
         break;
       }
-#endif
       lua_pack_type_extended(L, ud, idx);
       break;
     }
-#if LUA_VERSION_NUM == 504
     case LUA_TVECTOR:
       lua_pack_vector(L, ud, idx);
       break;
-#elif LUA_VERSION_NUM == 503
-    case LUA_TVECTOR2:
-    case LUA_TVECTOR3:
-    case LUA_TVECTOR4:
-    case LUA_TQUAT:
-      lua_pack_vector(L, ud, idx);
-      break;
-#else
-  #error unsupported Lua version
-#endif
     case LUA_TLIGHTUSERDATA:
     case LUA_TUSERDATA:
     case LUA_TTHREAD:

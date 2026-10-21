@@ -171,19 +171,9 @@ static inline int msgpack_pack_signed_int64(msgpack_packer *x, int64_t d) { msgp
 ** ===================================================================
 */
 
-#if LUA_VEC_TYPE == LUA_FLOAT_FLOAT
-  typedef uint32_t lua_VecI;
-  #define _msgpack_loadvec _vectorpack_load32
-  #define _msgpack_storevec _vectorpack_store32
-#elif LUA_VEC_TYPE == LUA_FLOAT_DOUBLE
-  typedef uint64_t lua_VecI;
-  #define _msgpack_loadvec _vectorpack_load64
-  #define _msgpack_storevec _vectorpack_store64
-#elif LUA_VEC_TYPE == LUA_FLOAT_LONGDOUBLE
-  #error "unsupported vector type"
-#else
-  #error "unknown vector type"
-#endif
+typedef uint32_t lua_VecI;
+#define _msgpack_loadvec _vectorpack_load32
+#define _msgpack_storevec _vectorpack_store32
 
 /*
 ** Temporary fix for ensuring vectors are packed in little-endian format.

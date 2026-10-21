@@ -21,10 +21,6 @@ extern "C" {
 ** ===================================================================
 */
 
-#if !defined(LUAMOD_API)  /* LUA_VERSION_NUM == 501 */
-  #define LUAMOD_API LUALIB_API
-#endif
-
 #define LUA_MSGPACK_LIBNAME "msgpack"
 LUAMOD_API int (luaopen_cmsgpack) (lua_State *L);
 
